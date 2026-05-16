@@ -105,6 +105,59 @@ def test_get_bits_rejects_invalid_ranges():
         buffer.get_bits(3, 2)
 
 
+def test_set_ones_sets_selected_range():
+    buffer = bitbuf(8, 0b1000_0001)
+
+    buffer.set_ones(2, 4)
+
+    assert int(buffer) == 0b1011_1101
+
+
+def test_set_zeros_clears_selected_range():
+    buffer = bitbuf(8, 0b1111_1111)
+
+    buffer.set_zeros(2, 4)
+
+    assert int(buffer) == 0b1100_0011
+
+
+def test_set_ones_and_zeros_allow_zero_width_without_change():
+    buffer = bitbuf(4, 0b1010)
+
+    buffer.set_ones(2, 0)
+    buffer.set_zeros(2, 0)
+
+    assert int(buffer) == 0b1010
+
+
+def test_set_ones_and_zeros_reject_invalid_ranges():
+    buffer = bitbuf(4)
+
+    with pytest.raises(ValueError):
+        buffer.set_ones(0, -1)
+    with pytest.raises(ValueError):
+        buffer.set_zeros(0, -1)
+    with pytest.raises(IndexError):
+        buffer.set_ones(-1, 1)
+    with pytest.raises(IndexError):
+        buffer.set_zeros(3, 2)
+
+
+def test_set_ones_and_zeros_compensate_internal_offset():
+    buffer = bitbuf(16, 0xF0F0)
+
+    buffer.delete_lsb(5)
+    buffer.set_ones(1, 3)
+    buffer.set_zeros(6, 2)
+
+    expected = 0xF0F0 >> 5
+    expected |= 0b111 << 1
+    expected &= ~(0b11 << 6)
+
+    assert buffer._offset == 5
+    assert int(buffer) == expected
+
+
 def test_set_bits_replaces_selected_field():
     buffer = bitbuf(8, 0b1111_0000)
 

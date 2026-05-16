@@ -201,6 +201,38 @@ class bitbuf:
             return 0
         return (self.data >> (self._offset + position)) & ((1 << width) - 1)
 
+    def set_ones(self, position: int, width: int) -> None:
+        """
+        Set ``width`` bits starting at ``position`` to 1.
+
+        Args:
+            position: Starting bit index for the write.
+            width: Number of bits to set.
+        """
+        if width < 0:
+            raise ValueError("width must be non-negative")
+        if position < 0 or position + width > self.size:
+            raise IndexError("bit range out of range")
+        if width == 0:
+            return
+        self.data |= ((1 << width) - 1) << (self._offset + position)
+
+    def set_zeros(self, position: int, width: int) -> None:
+        """
+        Set ``width`` bits starting at ``position`` to 0.
+
+        Args:
+            position: Starting bit index for the write.
+            width: Number of bits to clear.
+        """
+        if width < 0:
+            raise ValueError("width must be non-negative")
+        if position < 0 or position + width > self.size:
+            raise IndexError("bit range out of range")
+        if width == 0:
+            return
+        self.data &= ~(((1 << width) - 1) << (self._offset + position))
+
     def lshift(self, bits: int) -> None:
         """
         Shift the buffer left by ``bits`` while keeping the width unchanged.
