@@ -3,14 +3,14 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "bitbuffer"
+name = "bitbuf"
 version = "0.1.0"
 description = "Mutable LSB-first bit buffer utilities."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [
-  { name = "bitbuffer contributors" }
+  { name = "Anthony Donlon" }
 ]
 classifiers = [
   "Programming Language :: Python :: 3",
@@ -19,6 +19,7 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
 ]
 
 [project.optional-dependencies]
@@ -30,4 +31,4 @@ testpaths = ["tests"]
 pythonpath = ["."]
 
 [tool.hatch.build.targets.wheel]
-packages = ["bitbuffer"]
+packages = ["bitbuf"]

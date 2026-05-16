@@ -1,3 +1,3 @@
-from ._bitbuffer import bitbuf
+from ._bitbuf import bitbuf
 
 __all__ = ["bitbuf"]

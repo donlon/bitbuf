@@ -1,9 +1,9 @@
-# bitbuffer
+# bitbuf
 
 A small mutable, LSB-first bit buffer for Python.
 
 ```python
-from bitbuffer import bitbuf
+from bitbuf import bitbuf
 
 buf = bitbuf.from_bytes(b"\x34\x12")
 
