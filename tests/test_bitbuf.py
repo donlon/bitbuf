@@ -329,67 +329,56 @@ def test_in_place_shift_operators_return_same_buffer():
     assert int(buffer) == 0b000101
 
 
-def test_lsplice_appends_to_msb_side():
+def test_append_msb_appends_to_msb_side():
     buffer = bitbuf(4, 0b0011)
 
-    buffer.lsplice(3, 0b101)
+    buffer.append_msb(3, 0b101)
 
     assert len(buffer) == 7
     assert int(buffer) == 0b101_0011
 
 
-def test_rsplice_appends_to_lsb_side():
+def test_append_lsb_appends_to_lsb_side():
     buffer = bitbuf(4, 0b0011)
 
-    buffer.rsplice(3, 0b101)
+    buffer.append_lsb(3, 0b101)
 
     assert len(buffer) == 7
     assert int(buffer) == 0b0011_101
 
 
-def test_rsplice_uses_bounded_internal_offset():
+def test_append_lsb_uses_bounded_internal_offset():
     buffer = bitbuf(64, 0x1234_5678)
 
-    buffer.rsplice(3, 0b101)
+    buffer.append_lsb(3, 0b101)
 
     assert buffer._offset == 29
     assert len(buffer) == 67
     assert int(buffer) == (0x1234_5678 << 3) | 0b101
 
 
-def test_rsplice_normalizes_offset_by_32_bit_chunks():
+def test_append_lsb_normalizes_offset_by_32_bit_chunks():
     buffer = bitbuf(64, 0x1234_5678)
 
-    buffer.rsplice(45, 0x1234_5678_9ABC)
+    buffer.append_lsb(45, 0x1234_5678_9ABC)
 
     assert 0 <= buffer._offset <= 31
     assert buffer._offset == 19
     assert int(buffer) == (0x1234_5678 << 45) | (0x1234_5678_9ABC & ((1 << 45) - 1))
 
 
-def test_append_aliases_match_splice_operations():
-    msb = bitbuf(2, 0b01)
-    lsb = bitbuf(2, 0b01)
-
-    msb.append_msb(2, 0b10)
-    lsb.append_lsb(2, 0b10)
-
-    assert int(msb) == 0b1001
-    assert int(lsb) == 0b0110
-
-
-def test_splice_rejects_negative_width():
+def test_append_rejects_negative_width():
     with pytest.raises(ValueError):
-        bitbuf().lsplice(-1)
+        bitbuf().append_msb(-1)
     with pytest.raises(ValueError):
-        bitbuf().rsplice(-1)
+        bitbuf().append_lsb(-1)
 
 
-def test_splice_zero_width_does_not_change_buffer():
+def test_append_zero_width_does_not_change_buffer():
     buffer = bitbuf(4, 0b1010)
 
-    buffer.lsplice(0, 0b1111)
-    buffer.rsplice(0, 0b1111)
+    buffer.append_msb(0, 0b1111)
+    buffer.append_lsb(0, 0b1111)
 
     assert len(buffer) == 4
     assert int(buffer) == 0b1010

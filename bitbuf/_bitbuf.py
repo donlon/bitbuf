@@ -265,7 +265,7 @@ class bitbuf:
             self._increase_offset(bits)
             self._trim()
 
-    def lsplice(self, width: int, value: int | bytes = 0) -> None:
+    def append_msb(self, width: int, value: int | bytes = 0) -> None:
         """
         Append ``width`` bits to the most significant side and grow the buffer.
 
@@ -279,7 +279,7 @@ class bitbuf:
         self.data |= value << (self._offset + self.size)
         self.size += width
 
-    def rsplice(self, width: int, value: int | bytes = 0) -> None:
+    def append_lsb(self, width: int, value: int | bytes = 0) -> None:
         """
         Append ``width`` bits to the least significant side and grow the buffer.
 
@@ -296,14 +296,6 @@ class bitbuf:
         self.size += width
         self.set_bits(0, width, value)
         self._trim()
-
-    def append_msb(self, width: int, value: int | bytes = 0) -> None:
-        """Alias for ``lsplice``."""
-        self.lsplice(width, value)
-
-    def append_lsb(self, width: int, value: int | bytes = 0) -> None:
-        """Alias for ``rsplice``."""
-        self.rsplice(width, value)
 
     def delete_msb(self, width: int) -> int:
         """Remove and return ``width`` bits from the most significant side."""
