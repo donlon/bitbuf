@@ -22,6 +22,7 @@ class bitbuf:
         self.size = int(size)
         if self.size < 0:
             raise ValueError("size must be non-negative")
+        self._offset = 0
         self.data = ensure_int(data)
         self._trim()
 
@@ -93,7 +94,26 @@ class bitbuf:
         return (1 << self.size) - 1
 
     def _trim(self) -> None:
-        self.data &= self._mask()
+        if self.size == 0:
+            self.data = 0
+            self._offset = 0
+            return
+        self.data &= self._mask() << self._offset
+
+    def _increase_offset(self, bits: int) -> None:
+        self._offset += bits
+        if self._offset >= 32:
+            words = self._offset // 32
+            self.data >>= words * 32
+            self._offset %= 32
+
+    def _decrease_offset(self, bits: int) -> None:
+        if bits <= self._offset:
+            self._offset -= bits
+            return
+        words = (bits - self._offset + 31) // 32
+        self.data <<= words * 32
+        self._offset += words * 32 - bits
 
     def _slice_bounds(self, key: slice) -> tuple[int, int]:
         if key.step is not None:
@@ -130,7 +150,7 @@ class bitbuf:
         """
         if position < 0 or position >= self.size:
             raise IndexError("bit position out of range")
-        return (self.data >> position) & 1
+        return (self.data >> (self._offset + position)) & 1
 
     def set_bit(self, position: int, value: int = 1) -> None:
         """
@@ -160,6 +180,7 @@ class bitbuf:
         if width == 0:
             return
         value = ensure_int(value)
+        position += self._offset
         mask = ((1 << width) - 1) << position
         value_mask = (value & ((1 << width) - 1)) << position
         self.data = (self.data & ~mask) | value_mask
@@ -178,7 +199,7 @@ class bitbuf:
             raise IndexError("bit range out of range")
         if width == 0:
             return 0
-        return (self.data >> position) & ((1 << width) - 1)
+        return (self.data >> (self._offset + position)) & ((1 << width) - 1)
 
     def lshift(self, bits: int) -> None:
         """
@@ -191,8 +212,10 @@ class bitbuf:
             raise ValueError("bits must be non-negative")
         if bits >= self.size:
             self.data = 0
+            self._offset = 0
         else:
-            self.data = (self.data << bits) & self._mask()
+            self._decrease_offset(bits)
+            self._trim()
 
     def rshift(self, bits: int) -> None:
         """
@@ -203,7 +226,12 @@ class bitbuf:
         """
         if bits < 0:
             raise ValueError("bits must be non-negative")
-        self.data >>= bits
+        if bits >= self.size:
+            self.data = 0
+            self._offset = 0
+        else:
+            self._increase_offset(bits)
+            self._trim()
 
     def lsplice(self, width: int, value: int | bytes = 0) -> None:
         """
@@ -216,7 +244,7 @@ class bitbuf:
         if width < 0:
             raise ValueError("width must be non-negative")
         value = ensure_int(value) & ((1 << width) - 1 if width > 0 else 0)
-        self.data |= value << self.size
+        self.data |= value << (self._offset + self.size)
         self.size += width
 
     def rsplice(self, width: int, value: int | bytes = 0) -> None:
@@ -229,9 +257,13 @@ class bitbuf:
         """
         if width < 0:
             raise ValueError("width must be non-negative")
+        if width == 0:
+            return
         value = ensure_int(value) & ((1 << width) - 1 if width > 0 else 0)
-        self.data = (self.data << width) | value
+        self._decrease_offset(width)
         self.size += width
+        self.set_bits(0, width, value)
+        self._trim()
 
     def append_msb(self, width: int, value: int | bytes = 0) -> None:
         """Alias for ``lsplice``."""
@@ -264,8 +296,9 @@ class bitbuf:
         if width == 0:
             return 0
         value = self.get_bits(0, width)
-        self.data >>= width
         self.size -= width
+        self._increase_offset(width)
+        self._trim()
         return value
 
     def tobytes(self) -> bytes:
@@ -275,7 +308,7 @@ class bitbuf:
         Returns:
             The current buffer value serialized to the minimum number of bytes.
         """
-        return self.data.to_bytes(self.size_bytes(), "little")
+        return self.toint().to_bytes(self.size_bytes(), "little")
 
     def toint(self) -> int:
         """
@@ -284,7 +317,7 @@ class bitbuf:
         Returns:
             The current buffer value as a Python integer.
         """
-        return self.data
+        return (self.data >> self._offset) & self._mask()
 
     def size_bytes(self) -> int:
         """

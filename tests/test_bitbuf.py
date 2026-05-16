@@ -1,6 +1,6 @@
 import pytest
 
-from bitbuffer import bitbuf
+from bitbuf import bitbuf
 
 
 def test_init_masks_data_to_size():
@@ -235,6 +235,34 @@ def test_rshift_rejects_negative_bits():
         bitbuf(4).rshift(-1)
 
 
+def test_rshift_uses_bounded_internal_offset():
+    buffer = bitbuf(80, 0x1234_5678_9ABC_DEF0)
+
+    buffer.rshift(5)
+
+    assert buffer._offset == 5
+    assert int(buffer) == 0x1234_5678_9ABC_DEF0 >> 5
+
+
+def test_rshift_normalizes_offset_by_32_bit_chunks():
+    buffer = bitbuf(96, 0x1234_5678_9ABC_DEF0)
+
+    buffer.rshift(45)
+
+    assert 0 <= buffer._offset <= 31
+    assert buffer._offset == 13
+    assert int(buffer) == 0x1234_5678_9ABC_DEF0 >> 45
+
+
+def test_lshift_uses_bounded_internal_offset():
+    buffer = bitbuf(80, 0x1234_5678)
+
+    buffer.lshift(3)
+
+    assert buffer._offset == 29
+    assert int(buffer) == 0x1234_5678 << 3
+
+
 def test_in_place_shift_operators_return_same_buffer():
     buffer = bitbuf(6, 0b001011)
     original = buffer
@@ -264,6 +292,26 @@ def test_rsplice_appends_to_lsb_side():
 
     assert len(buffer) == 7
     assert int(buffer) == 0b0011_101
+
+
+def test_rsplice_uses_bounded_internal_offset():
+    buffer = bitbuf(64, 0x1234_5678)
+
+    buffer.rsplice(3, 0b101)
+
+    assert buffer._offset == 29
+    assert len(buffer) == 67
+    assert int(buffer) == (0x1234_5678 << 3) | 0b101
+
+
+def test_rsplice_normalizes_offset_by_32_bit_chunks():
+    buffer = bitbuf(64, 0x1234_5678)
+
+    buffer.rsplice(45, 0x1234_5678_9ABC)
+
+    assert 0 <= buffer._offset <= 31
+    assert buffer._offset == 19
+    assert int(buffer) == (0x1234_5678 << 45) | (0x1234_5678_9ABC & ((1 << 45) - 1))
 
 
 def test_append_aliases_match_splice_operations():
@@ -312,6 +360,47 @@ def test_delete_lsb_removes_low_bits_and_returns_them():
     assert removed == 0b110
     assert len(buffer) == 5
     assert int(buffer) == 0b11010
+
+
+def test_delete_lsb_uses_bounded_internal_offset():
+    buffer = bitbuf(80, 0x1234_5678_9ABC_DEF0)
+
+    removed = buffer.delete_lsb(7)
+
+    assert removed == 0x1234_5678_9ABC_DEF0 & 0b1111111
+    assert buffer._offset == 7
+    assert len(buffer) == 73
+    assert int(buffer) == 0x1234_5678_9ABC_DEF0 >> 7
+
+
+def test_delete_lsb_normalizes_offset_by_32_bit_chunks():
+    buffer = bitbuf(96, 0x1234_5678_9ABC_DEF0)
+
+    removed = buffer.delete_lsb(45)
+
+    assert removed == 0x1234_5678_9ABC_DEF0 & ((1 << 45) - 1)
+    assert 0 <= buffer._offset <= 31
+    assert buffer._offset == 13
+    assert len(buffer) == 51
+    assert int(buffer) == 0x1234_5678_9ABC_DEF0 >> 45
+
+
+def test_offset_is_compensated_by_other_apis():
+    buffer = bitbuf(64, 0x1234_5678_9ABC_DEF0)
+
+    buffer.delete_lsb(9)
+    buffer[4:12] = 0xA5
+    buffer.append_msb(5, 0b10101)
+
+    expected = 0x1234_5678_9ABC_DEF0 >> 9
+    expected = (expected & ~(0xFF << 4)) | (0xA5 << 4)
+    expected |= 0b10101 << 55
+
+    assert buffer._offset == 9
+    assert len(buffer) == 60
+    assert buffer[4:12] == 0xA5
+    assert int(buffer) == expected
+    assert bytes(buffer) == expected.to_bytes(buffer.size_bytes(), "little")
 
 
 def test_delete_all_bits():
