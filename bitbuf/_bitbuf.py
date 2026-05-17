@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from typing import TypeAlias
+from typing import TypeAlias, Union
 
 from ._utils import ensure_int
 
-input_types: TypeAlias = int | bytes | bytearray | memoryview | "bitbuf"
+input_types: TypeAlias = Union[int, bytes, bytearray, memoryview, "bitbuf"]
 
 
 class bitbuf:
