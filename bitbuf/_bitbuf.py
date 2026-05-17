@@ -356,20 +356,7 @@ class bitbuf:
             self._increase_offset(bits)
             self._trim()
 
-    def append_msb(self, value: input_types = 0, size: int | None = None) -> None:
-        """
-        Append ``size`` bits to the most significant side and grow the buffer.
-
-        Args:
-            value: Bits to append, interpreted in little-endian bit order.
-            size: Number of bits to append. Ignored when ``value`` is a bitbuf.
-        """
-        value, size = self._sized_value(value, size)
-        value &= (1 << size) - 1 if size > 0 else 0
-        self._data |= value << (self._offset + self.size)
-        self.size += size
-
-    def append_lsb(self, value: input_types = 0, size: int | None = None) -> None:
+    def append_low(self, value: input_types = 0, size: int | None = None) -> None:
         """
         Append ``size`` bits to the least significant side and grow the buffer.
 
@@ -386,21 +373,20 @@ class bitbuf:
         self.set_bits(0, value, size)
         self._trim()
 
-    def delete_msb(self, width: int) -> int:
-        """Remove and return ``width`` bits from the most significant side."""
-        if width < 0:
-            raise ValueError("width must be non-negative")
-        if width > self.size:
-            raise IndexError("bit range out of range")
-        if width == 0:
-            return 0
-        pos = self.size - width
-        value = self.get_bits(pos, width)
-        self.size -= width
-        self._trim()
-        return value
+    def append_high(self, value: input_types = 0, size: int | None = None) -> None:
+        """
+        Append ``size`` bits to the most significant side and grow the buffer.
 
-    def delete_lsb(self, width: int) -> int:
+        Args:
+            value: Bits to append, interpreted in little-endian bit order.
+            size: Number of bits to append. Ignored when ``value`` is a bitbuf.
+        """
+        value, size = self._sized_value(value, size)
+        value &= (1 << size) - 1 if size > 0 else 0
+        self._data |= value << (self._offset + self.size)
+        self.size += size
+
+    def delete_low(self, width: int) -> int:
         """Remove and return ``width`` bits from the least significant side."""
         if width < 0:
             raise ValueError("width must be non-negative")
@@ -411,6 +397,20 @@ class bitbuf:
         value = self.get_bits(0, width)
         self.size -= width
         self._increase_offset(width)
+        self._trim()
+        return value
+
+    def delete_high(self, width: int) -> int:
+        """Remove and return ``width`` bits from the most significant side."""
+        if width < 0:
+            raise ValueError("width must be non-negative")
+        if width > self.size:
+            raise IndexError("bit range out of range")
+        if width == 0:
+            return 0
+        pos = self.size - width
+        value = self.get_bits(pos, width)
+        self.size -= width
         self._trim()
         return value
 

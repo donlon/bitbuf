@@ -212,7 +212,7 @@ def test_set_ones_and_zeros_reject_invalid_ranges():
 def test_set_ones_and_zeros_compensate_internal_offset():
     buffer = bitbuf(0xF0F0, 16)
 
-    buffer.delete_lsb(5)
+    buffer.delete_low(5)
     buffer.set_ones(1, 3)
     buffer.set_zeros(6, 2)
 
@@ -382,7 +382,7 @@ def test_assign_accepts_bytearray_and_memoryview():
 def test_clear_keeps_size_and_resets_bits():
     buffer = bitbuf(0xFFFF, 16)
 
-    buffer.delete_lsb(5)
+    buffer.delete_low(5)
     buffer.clear()
 
     assert len(buffer) == 11
@@ -402,7 +402,7 @@ def test_toggle_flips_bits_and_keeps_size():
 def test_toggle_compensates_internal_offset():
     buffer = bitbuf(0b1111_0000, 8)
 
-    buffer.delete_lsb(3)
+    buffer.delete_low(3)
     buffer.toggle()
 
     assert buffer._offset == 3
@@ -431,7 +431,7 @@ def test_toggle_flips_bits_and_keeps_size_ranged():
 def test_toggle_compensates_internal_offset_ranged():
     buffer = bitbuf(0b1100_1100, 8)
 
-    buffer.delete_lsb(3)
+    buffer.delete_low(3)
     buffer.toggle(2, 2)
 
     assert buffer._offset == 3
@@ -519,7 +519,7 @@ def test_in_place_shift_operators_return_same_buffer():
 def test_append_msb_appends_to_msb_side():
     buffer = bitbuf(0b0011, 4)
 
-    buffer.append_msb(0b101, 3)
+    buffer.append_high(0b101, 3)
 
     assert len(buffer) == 7
     assert int(buffer) == 0b101_0011
@@ -528,7 +528,7 @@ def test_append_msb_appends_to_msb_side():
 def test_append_lsb_appends_to_lsb_side():
     buffer = bitbuf(0b0011, 4)
 
-    buffer.append_lsb(0b101, 3)
+    buffer.append_low(0b101, 3)
 
     assert len(buffer) == 7
     assert int(buffer) == 0b0011_101
@@ -537,7 +537,7 @@ def test_append_lsb_appends_to_lsb_side():
 def test_append_lsb_uses_bounded_internal_offset():
     buffer = bitbuf(0x1234_5678, 64)
 
-    buffer.append_lsb(0b101, 3)
+    buffer.append_low(0b101, 3)
 
     assert buffer._offset == 29
     assert len(buffer) == 67
@@ -547,7 +547,7 @@ def test_append_lsb_uses_bounded_internal_offset():
 def test_append_lsb_normalizes_offset_by_32_bit_chunks():
     buffer = bitbuf(0x1234_5678, 64)
 
-    buffer.append_lsb(0x1234_5678_9ABC, 45)
+    buffer.append_low(0x1234_5678_9ABC, 45)
 
     assert 0 <= buffer._offset <= 31
     assert buffer._offset == 19
@@ -559,8 +559,8 @@ def test_append_accepts_bitbuf_value_and_ignores_size():
     lsb = bitbuf(0b01, 2)
     value = bitbuf(0b101, 3)
 
-    msb.append_msb(value, 99)
-    lsb.append_lsb(value, 99)
+    msb.append_high(value, 99)
+    lsb.append_low(value, 99)
 
     assert len(msb) == 5
     assert len(lsb) == 5
@@ -572,8 +572,8 @@ def test_append_accepts_bytearray_and_memoryview():
     msb = bitbuf(0b01, 2)
     lsb = bitbuf(0b01, 2)
 
-    msb.append_msb(bytearray(b"\x05"), 3)
-    lsb.append_lsb(memoryview(b"\x05"), 3)
+    msb.append_high(bytearray(b"\x05"), 3)
+    lsb.append_low(memoryview(b"\x05"), 3)
 
     assert int(msb) == 0b10101
     assert int(lsb) == 0b01101
@@ -581,16 +581,16 @@ def test_append_accepts_bytearray_and_memoryview():
 
 def test_append_rejects_negative_width():
     with pytest.raises(ValueError):
-        bitbuf().append_msb(0, -1)
+        bitbuf().append_high(0, -1)
     with pytest.raises(ValueError):
-        bitbuf().append_lsb(0, -1)
+        bitbuf().append_low(0, -1)
 
 
 def test_append_zero_width_does_not_change_buffer():
     buffer = bitbuf(0b1010, 4)
 
-    buffer.append_msb(0b1111, 0)
-    buffer.append_lsb(0b1111, 0)
+    buffer.append_high(0b1111, 0)
+    buffer.append_low(0b1111, 0)
 
     assert len(buffer) == 4
     assert int(buffer) == 0b1010
@@ -599,7 +599,7 @@ def test_append_zero_width_does_not_change_buffer():
 def test_delete_msb_removes_high_bits_and_returns_lsb_aligned_value():
     buffer = bitbuf(0b1101_0110, 8)
 
-    removed = buffer.delete_msb(3)
+    removed = buffer.delete_high(3)
 
     assert removed == 0b110
     assert len(buffer) == 5
@@ -609,7 +609,7 @@ def test_delete_msb_removes_high_bits_and_returns_lsb_aligned_value():
 def test_delete_lsb_removes_low_bits_and_returns_them():
     buffer = bitbuf(0b1101_0110, 8)
 
-    removed = buffer.delete_lsb(3)
+    removed = buffer.delete_low(3)
 
     assert removed == 0b110
     assert len(buffer) == 5
@@ -619,7 +619,7 @@ def test_delete_lsb_removes_low_bits_and_returns_them():
 def test_delete_lsb_uses_bounded_internal_offset():
     buffer = bitbuf(0x1234_5678_9ABC_DEF0, 80)
 
-    removed = buffer.delete_lsb(7)
+    removed = buffer.delete_low(7)
 
     assert removed == 0x1234_5678_9ABC_DEF0 & 0b1111111
     assert buffer._offset == 7
@@ -630,7 +630,7 @@ def test_delete_lsb_uses_bounded_internal_offset():
 def test_delete_lsb_normalizes_offset_by_32_bit_chunks():
     buffer = bitbuf(0x1234_5678_9ABC_DEF0, 96)
 
-    removed = buffer.delete_lsb(45)
+    removed = buffer.delete_low(45)
 
     assert removed == 0x1234_5678_9ABC_DEF0 & ((1 << 45) - 1)
     assert 0 <= buffer._offset <= 31
@@ -642,9 +642,9 @@ def test_delete_lsb_normalizes_offset_by_32_bit_chunks():
 def test_offset_is_compensated_by_other_apis():
     buffer = bitbuf(0x1234_5678_9ABC_DEF0, 64)
 
-    buffer.delete_lsb(9)
+    buffer.delete_low(9)
     buffer[4:12] = 0xA5
-    buffer.append_msb(0b10101, 5)
+    buffer.append_high(0b10101, 5)
 
     expected = 0x1234_5678_9ABC_DEF0 >> 9
     expected = (expected & ~(0xFF << 4)) | (0xA5 << 4)
@@ -660,7 +660,7 @@ def test_offset_is_compensated_by_other_apis():
 def test_delete_all_bits():
     buffer = bitbuf(0b1111, 4)
 
-    removed = buffer.delete_msb(4)
+    removed = buffer.delete_high(4)
 
     assert removed == 0b1111
     assert len(buffer) == 0
@@ -670,8 +670,8 @@ def test_delete_all_bits():
 def test_delete_zero_width_does_not_change_buffer():
     buffer = bitbuf(0b1010, 4)
 
-    assert buffer.delete_msb(0) == 0
-    assert buffer.delete_lsb(0) == 0
+    assert buffer.delete_high(0) == 0
+    assert buffer.delete_low(0) == 0
     assert len(buffer) == 4
     assert int(buffer) == 0b1010
 
@@ -680,13 +680,13 @@ def test_delete_rejects_invalid_widths():
     buffer = bitbuf(0, 4)
 
     with pytest.raises(ValueError):
-        buffer.delete_msb(-1)
+        buffer.delete_high(-1)
     with pytest.raises(ValueError):
-        buffer.delete_lsb(-1)
+        buffer.delete_low(-1)
     with pytest.raises(IndexError):
-        buffer.delete_msb(5)
+        buffer.delete_high(5)
     with pytest.raises(IndexError):
-        buffer.delete_lsb(5)
+        buffer.delete_low(5)
 
 
 def test_int_method_and_builtin_conversion():
