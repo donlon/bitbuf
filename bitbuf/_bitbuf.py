@@ -415,6 +415,7 @@ class bitbuf:
         """Return ``hex(self.int())``."""
         return hex(self.int())
 
+    @property
     def size_bytes(self) -> int:
         """
         Return the minimum number of bytes required to store the buffer.
