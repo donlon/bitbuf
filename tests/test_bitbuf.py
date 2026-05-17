@@ -760,6 +760,12 @@ def test_bytes_method_and_builtin_conversion_use_minimum_little_endian_bytes():
     assert bytes(buffer) == b"\xbc\x0a"
 
 
+def test_bytearray_method_uses_minimum_little_endian_bytes():
+    buffer = bitbuf(0xABC, 12)
+
+    assert buffer.bytearray() == bytearray(b"\xbc\x0a")
+
+
 def test_size_bytes_rounds_up_to_full_bytes():
     assert bitbuf(0, 0).size_bytes == 0
     assert bitbuf(0, 1).size_bytes == 1

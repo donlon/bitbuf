@@ -440,6 +440,12 @@ class bitbuf:
         self.delete_high(width)
         return value
 
+    def bytearray(self) -> bytearray:
+        """
+        Return the buffer contents as little-endian bytearray.
+        """
+        return bytearray(self.bytes())
+
     def bytes(self) -> bytes:
         """
         Return the buffer contents as little-endian bytes.

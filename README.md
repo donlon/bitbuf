@@ -124,10 +124,12 @@ buf = bitbuf.from_bytes(b"\x34\x12")
 
 as_int = int(buf)
 as_bytes = bytes(buf)
+as_bytearray = buf.bytearray()
 as_hex = hex(buf)
 
 assert as_int == buf.int()
 assert as_bytes == buf.bytes()
+assert as_bytearray == bytearray(as_bytes)
 assert as_hex == buf.hex()
 ```
 
