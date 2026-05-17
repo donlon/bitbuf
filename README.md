@@ -112,6 +112,7 @@ high = buf.delete_msb(3)
 buf = bitbuf(0x1234, 16)
 
 buf.assign(0xAB, 8)
+buf.toggle()         # flips all 8 bits
 buf.clear()          # keeps len(buf) == 8
 ```
 

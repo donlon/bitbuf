@@ -390,6 +390,55 @@ def test_clear_keeps_size_and_resets_bits():
     assert buffer._offset == 0
 
 
+def test_toggle_flips_bits_and_keeps_size():
+    buffer = bitbuf(0b1010, 4)
+
+    buffer.toggle()
+
+    assert len(buffer) == 4
+    assert int(buffer) == 0b0101
+
+
+def test_toggle_compensates_internal_offset():
+    buffer = bitbuf(0b1111_0000, 8)
+
+    buffer.delete_lsb(3)
+    buffer.toggle()
+
+    assert buffer._offset == 3
+    assert len(buffer) == 5
+    assert int(buffer) == 0b00001
+
+
+def test_toggle_empty_buffer_is_noop():
+    buffer = bitbuf()
+
+    buffer.toggle()
+
+    assert len(buffer) == 0
+    assert int(buffer) == 0
+
+
+def test_toggle_flips_bits_and_keeps_size_ranged():
+    buffer = bitbuf(0b1010, 4)
+
+    buffer.toggle(1, 2)
+
+    assert len(buffer) == 4
+    assert int(buffer) == 0b1100
+
+
+def test_toggle_compensates_internal_offset_ranged():
+    buffer = bitbuf(0b1100_1100, 8)
+
+    buffer.delete_lsb(3)
+    buffer.toggle(2, 2)
+
+    assert buffer._offset == 3
+    assert len(buffer) == 5
+    assert int(buffer) == 0b10101
+
+
 def test_lshift_mutates_in_place_and_preserves_size():
     buffer = bitbuf(0b0011, 4)
 
@@ -605,7 +654,7 @@ def test_offset_is_compensated_by_other_apis():
     assert len(buffer) == 60
     assert buffer[4:12] == 0xA5
     assert int(buffer) == expected
-    assert bytes(buffer) == expected.to_bytes(buffer.size_bytes(), "little")
+    assert bytes(buffer) == expected.to_bytes(buffer.size_bytes, "little")
 
 
 def test_delete_all_bits():
@@ -657,13 +706,13 @@ def test_hex_conversion():
 def test_bytes_method_and_builtin_conversion_use_minimum_little_endian_bytes():
     buffer = bitbuf(0xABC, 12)
 
-    assert buffer.size_bytes() == 2
+    assert buffer.size_bytes == 2
     assert buffer.bytes() == b"\xbc\x0a"
     assert bytes(buffer) == b"\xbc\x0a"
 
 
 def test_size_bytes_rounds_up_to_full_bytes():
-    assert bitbuf(0, 0).size_bytes() == 0
-    assert bitbuf(0, 1).size_bytes() == 1
-    assert bitbuf(0, 8).size_bytes() == 1
-    assert bitbuf(0, 9).size_bytes() == 2
+    assert bitbuf(0, 0).size_bytes == 0
+    assert bitbuf(0, 1).size_bytes == 1
+    assert bitbuf(0, 8).size_bytes == 1
+    assert bitbuf(0, 9).size_bytes == 2

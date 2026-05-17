@@ -203,6 +203,26 @@ class bitbuf:
         self._data = 0
         self._offset = 0
 
+    def toggle(self, pos: int = 0, width: int | None = None) -> None:
+        """
+        Flip bits of specified range. If size is unassigneed, it toggles all bits starts from ``pos`` up to highest bit.
+        """
+        if self.size == 0 and pos == 0 and width is None:
+            return
+        if pos < 0 or pos >= self.size:
+            raise IndexError("bit range out of range")
+        if width is None:
+            # Set width to fill all MSB
+            width = self.size - pos
+        elif width < 0:
+            raise ValueError("width must be non-negative")
+        if pos + width > self.size:
+            raise IndexError("bit range out of range")
+        if width == 0 or self.size == 0:
+            return 0
+        mask = ((1 << width) - 1) << (pos + self._offset)
+        self._data ^= mask
+
     def get_bit(self, pos: int) -> int:
         """
         Return the bit value at ``pos``.
