@@ -154,16 +154,6 @@ def test_get_bits_rejects_invalid_ranges():
         buffer.get_bits(3, 2)
 
 
-def test_get_bits_as_buf_returns_sized_buffer():
-    buffer = bitbuf(0b1101_0110, 8)
-
-    extracted = buffer.get_bits_as_buf(1, 4)
-
-    assert isinstance(extracted, bitbuf)
-    assert len(extracted) == 4
-    assert int(extracted) == 0b1011
-
-
 def test_slice_returns_sized_buffer():
     buffer = bitbuf(0b1101_0110, 8)
 
@@ -179,6 +169,13 @@ def test_get_bits_as_bytes_returns_little_endian_bytes():
 
     assert buffer.get_bits_as_bytes(4, 8) == b"\x23"
     assert buffer.get_bits_as_bytes(0, 12) == b"\x34\x02"
+
+
+def test_get_bits_as_bytearray_returns_little_endian_bytearray():
+    buffer = bitbuf(0x1234, 16)
+
+    assert buffer.get_bits_as_bytearray(4, 8) == bytearray(b"\x23")
+    assert buffer.get_bits_as_bytearray(0, 12) == bytearray(b"\x34\x02")
 
 
 def test_set_ones_sets_selected_range():

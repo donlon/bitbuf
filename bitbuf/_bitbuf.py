@@ -229,24 +229,23 @@ class bitbuf:
             return 0
         return (self._data >> (self._offset + pos)) & ((1 << width) - 1)
 
-    def get_bits_as_buf(self, pos: int, width: int) -> bitbuf:
-        """
-        Return ``width`` bits starting at ``pos`` as a new bitbuf.
-        """
-        return bitbuf(self.get_bits(pos, width), width)
-
-    def slice(self, pos: int, width: int) -> bitbuf:
-        """
-        Return ``width`` bits starting at ``pos`` as a new bitbuf.
-        """
-        return self.get_bits_as_buf(pos, width)
-
     def get_bits_as_bytes(self, pos: int, width: int) -> bytes:
         """
         Return ``width`` bits starting at ``pos`` as little-endian bytes.
         """
         return self.get_bits(pos, width).to_bytes((width + 7) // 8, "little")
 
+    def get_bits_as_bytearray(self, pos: int, width: int) -> bytearray:
+        """
+        Return ``width`` bits starting at ``pos`` as little-endian bytearray.
+        """
+        return bytearray(self.get_bits_as_bytes(pos, width))
+
+    def slice(self, pos: int, width: int) -> bitbuf:
+        """
+        Return ``width`` bits starting at ``pos`` as a new bitbuf.
+        """
+        return bitbuf(self.get_bits(pos, width), width)
 
     def set_bit(self, pos: int, value: int = 1) -> None:
         """
