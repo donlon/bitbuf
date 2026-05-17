@@ -59,6 +59,14 @@ def test_from_bytes_uses_little_endian_order():
     assert int(buffer) == 0x1234
 
 
+def test_from_bytes_accepts_bytearray_and_memoryview():
+    from_bytearray = bitbuf.from_bytes(bytearray(b"\x34\x12"))
+    from_memoryview = bitbuf.from_bytes(memoryview(b"\x34\x12"))
+
+    assert int(from_bytearray) == 0x1234
+    assert int(from_memoryview) == 0x1234
+
+
 def test_zeros_and_ones_constructors():
     assert int(bitbuf.zeros(5)) == 0
     assert int(bitbuf.ones(5)) == 0b11111
@@ -232,6 +240,17 @@ def test_set_bits_accepts_little_endian_bytes():
     assert int(buffer) == 0x1234
 
 
+def test_set_bits_accepts_bytearray_and_memoryview():
+    from_bytearray = bitbuf(0, 16)
+    from_memoryview = bitbuf(0, 16)
+
+    from_bytearray.set_bits(0, bytearray(b"\x34\x12"))
+    from_memoryview.set_bits(0, memoryview(b"\x34\x12"))
+
+    assert int(from_bytearray) == 0x1234
+    assert int(from_memoryview) == 0x1234
+
+
 def test_set_bits_accepts_bitbuf_value_and_ignores_size():
     buffer = bitbuf(0, 8)
     source = bitbuf(0b101101, 6)
@@ -345,6 +364,19 @@ def test_assign_accepts_bitbuf_value_and_ignores_size():
 
     assert len(buffer) == 6
     assert int(buffer) == 0b101101
+
+
+def test_assign_accepts_bytearray_and_memoryview():
+    from_bytearray = bitbuf()
+    from_memoryview = bitbuf()
+
+    from_bytearray.assign(bytearray(b"\x34\x12"))
+    from_memoryview.assign(memoryview(b"\x34\x12"))
+
+    assert len(from_bytearray) == 16
+    assert len(from_memoryview) == 16
+    assert int(from_bytearray) == 0x1234
+    assert int(from_memoryview) == 0x1234
 
 
 def test_clear_keeps_size_and_resets_bits():
@@ -483,6 +515,17 @@ def test_append_accepts_bitbuf_value_and_ignores_size():
 
     assert len(msb) == 5
     assert len(lsb) == 5
+    assert int(msb) == 0b10101
+    assert int(lsb) == 0b01101
+
+
+def test_append_accepts_bytearray_and_memoryview():
+    msb = bitbuf(0b01, 2)
+    lsb = bitbuf(0b01, 2)
+
+    msb.append_msb(bytearray(b"\x05"), 3)
+    lsb.append_lsb(memoryview(b"\x05"), 3)
+
     assert int(msb) == 0b10101
     assert int(lsb) == 0b01101
 

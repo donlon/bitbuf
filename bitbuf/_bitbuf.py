@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from typing import TypeAlias
+
 from ._utils import ensure_int
 
+input_types: TypeAlias = int | bytes | bytearray | memoryview | 'bitbuf'
 
 class bitbuf:
     """A mutable little-endian bit buffer backed by Python's ``int``.
@@ -13,7 +16,7 @@ class bitbuf:
     Byte conversion uses little-endian order for both input and output.
     """
 
-    def __init__(self, value: int | bytes | bitbuf = 0, size: int | None = None):
+    def __init__(self, value: input_types = 0, size: int | None = None):
         """
         Args:
             value: Initial buffer contents as an integer, little-endian bytes,
@@ -75,7 +78,7 @@ class bitbuf:
             return self.get_bit(key)
         raise TypeError("bit index must be an int or slice")
 
-    def __setitem__(self, key: int | slice, value: int | bytes) -> None:
+    def __setitem__(self, key: int | slice, value: input_types) -> None:
         if isinstance(key, slice):
             start, stop = self._slice_bounds(key)
             self.set_bits(start, value, stop - start)
@@ -99,9 +102,9 @@ class bitbuf:
         return (1 << self.size) - 1
 
     @staticmethod
-    def _sized_value(value: int | bytes | bitbuf, size: int | None) -> tuple[int, int]:
+    def _sized_value(value: input_types, size: int | None) -> tuple[int, int]:
         if isinstance(value, bitbuf):
-            return value.toint(), len(value)
+            return value.int(), len(value)
         if isinstance(value, (bytes, bytearray, memoryview)):
             data = ensure_int(value)
             if size is None:
@@ -180,7 +183,7 @@ class bitbuf:
             raise ValueError("size must be non-negative")
         self._trim()
 
-    def assign(self, value: int | bytes | bitbuf = 0, size: int | None = None) -> None:
+    def assign(self, value: input_types = 0, size: int | None = None) -> None:
         """
         Replace the whole buffer with ``value`` and ``size``.
 
@@ -219,7 +222,7 @@ class bitbuf:
         """
         self.set_bits(self._normalize_position(position), value, 1)
 
-    def set_bits(self, position: int, value: int | bytes | bitbuf = 0, size: int | None = None) -> None:
+    def set_bits(self, position: int, value: input_types = 0, size: int | None = None) -> None:
         """
         Replace ``size`` bits starting at ``position`` with ``value``.
 
@@ -332,7 +335,7 @@ class bitbuf:
             self._increase_offset(bits)
             self._trim()
 
-    def append_msb(self, value: int | bytes | bitbuf = 0, size: int | None = None) -> None:
+    def append_msb(self, value: input_types = 0, size: int | None = None) -> None:
         """
         Append ``size`` bits to the most significant side and grow the buffer.
 
@@ -345,7 +348,7 @@ class bitbuf:
         self.data |= value << (self._offset + self.size)
         self.size += size
 
-    def append_lsb(self, value: int | bytes | bitbuf = 0, size: int | None = None) -> None:
+    def append_lsb(self, value: input_types = 0, size: int | None = None) -> None:
         """
         Append ``size`` bits to the least significant side and grow the buffer.
 
