@@ -13,17 +13,16 @@ class bitbuf:
     Byte conversion uses little-endian order for both input and output.
     """
 
-    def __init__(self, size: int = 0, data: int | bytes = 0):
+    def __init__(self, value: int | bytes | bitbuf = 0, size: int | None = None):
         """
         Args:
-            size: Initial buffer width in bits.
-            data: Initial buffer contents as an integer or little-endian bytes.
+            value: Initial buffer contents as an integer, little-endian bytes,
+                or another bitbuf.
+            size: Initial buffer width in bits. Ignored when ``value`` is a bitbuf.
         """
-        self.size = int(size)
-        if self.size < 0:
-            raise ValueError("size must be non-negative")
+        data, self.size = self._sized_value(value, size)
         self._offset = 0
-        self.data = ensure_int(data)
+        self.data = data
         self._trim()
 
     @classmethod
@@ -32,26 +31,26 @@ class bitbuf:
         data = ensure_int(data)
         if size is None:
             size = data.bit_length()
-        return cls(size, data)
+        return cls(data, size)
 
     @classmethod
     def from_bytes(cls, data: bytes | bytearray | memoryview, size: int | None = None) -> bitbuf:
         """Create a buffer from little-endian bytes."""
         if size is None:
             size = len(data) * 8
-        return cls(size, data)
+        return cls(data, size)
 
     @classmethod
     def zeros(cls, size: int) -> bitbuf:
         """Create a zero-filled buffer."""
-        return cls(size, 0)
+        return cls(0, size)
 
     @classmethod
     def ones(cls, size: int) -> bitbuf:
         """Create a one-filled buffer."""
         if size < 0:
             raise ValueError("size must be non-negative")
-        return cls(size, (1 << size) - 1 if size else 0)
+        return cls((1 << size) - 1 if size else 0, size)
 
     def __len__(self) -> int:
         return self.size
@@ -59,8 +58,14 @@ class bitbuf:
     def __int__(self) -> int:
         return self.toint()
 
+    def __index__(self) -> int:
+        return self.toint()
+
     def __bytes__(self) -> bytes:
         return self.tobytes()
+
+    def __repr__(self) -> str:
+        return f"bitbuf(len={self.size}, hex={self._repr_hex()})"
 
     def __getitem__(self, key: int | slice) -> int:
         if isinstance(key, slice):
@@ -73,7 +78,7 @@ class bitbuf:
     def __setitem__(self, key: int | slice, value: int | bytes) -> None:
         if isinstance(key, slice):
             start, stop = self._slice_bounds(key)
-            self.set_bits(start, stop - start, value)
+            self.set_bits(start, value, stop - start)
             return
         if isinstance(key, int):
             self.set_bit(key, value)
@@ -92,6 +97,23 @@ class bitbuf:
         if self.size <= 0:
             return 0
         return (1 << self.size) - 1
+
+    @staticmethod
+    def _sized_value(value: int | bytes | bitbuf, size: int | None) -> tuple[int, int]:
+        if isinstance(value, bitbuf):
+            return value.toint(), len(value)
+        if isinstance(value, (bytes, bytearray, memoryview)):
+            data = ensure_int(value)
+            if size is None:
+                size = len(value) * 8
+        else:
+            data = ensure_int(value)
+            if size is None:
+                size = data.bit_length()
+        size = int(size)
+        if size < 0:
+            raise ValueError("size must be non-negative")
+        return data, size
 
     def _trim(self) -> None:
         if self.size == 0:
@@ -120,11 +142,28 @@ class bitbuf:
             raise TypeError("slice step is not supported")
         if key.start is None or key.stop is None:
             raise TypeError("slice start and stop are required")
-        start = int(key.start)
-        stop = int(key.stop)
+        start = self._normalize_position(int(key.start), allow_end=True)
+        stop = self._normalize_position(int(key.stop), allow_end=True)
         if stop < start:
             raise ValueError("slice stop must be greater than or equal to start")
         return start, stop
+
+    def _normalize_position(self, position: int, allow_end: bool = False) -> int:
+        if position < 0:
+            position += self.size
+        upper = self.size if allow_end else self.size - 1
+        if position < 0 or position > upper:
+            raise IndexError("bit position out of range")
+        return position
+
+    def _repr_hex(self) -> str:
+        hex_digits = max(1, (self.size + 3) // 4)
+        if hex_digits <= 64:
+            return self.hex()
+        low = self.get_bits(0, 64)
+        high_width = min(64, self.size)
+        high = self.get_bits(self.size - high_width, high_width)
+        return f"0x{high:x}...{low:016x}"
 
     def resize(self, size: int) -> None:
         """
@@ -141,6 +180,25 @@ class bitbuf:
             raise ValueError("size must be non-negative")
         self._trim()
 
+    def assign(self, value: int | bytes | bitbuf = 0, size: int | None = None) -> None:
+        """
+        Replace the whole buffer with ``value`` and ``size``.
+
+        Args:
+            value: Replacement contents as an integer, little-endian bytes, or
+                another bitbuf.
+            size: Replacement width in bits. Ignored when ``value`` is a bitbuf.
+        """
+        data, self.size = self._sized_value(value, size)
+        self._offset = 0
+        self.data = data
+        self._trim()
+
+    def clear(self) -> None:
+        """Clear all bits while keeping the current size unchanged."""
+        self.data = 0
+        self._offset = 0
+
     def get_bit(self, position: int) -> int:
         """
         Return the bit value at ``position``.
@@ -148,8 +206,7 @@ class bitbuf:
         Args:
             position: Bit index, where 0 refers to the least significant bit.
         """
-        if position < 0 or position >= self.size:
-            raise IndexError("bit position out of range")
+        position = self._normalize_position(position)
         return (self.data >> (self._offset + position)) & 1
 
     def set_bit(self, position: int, value: int = 1) -> None:
@@ -160,29 +217,27 @@ class bitbuf:
             position: Bit index, where 0 refers to the least significant bit.
             value: Bit value to write. Non-zero values are truncated to 1.
         """
-        self.set_bits(position, 1, value)
+        self.set_bits(self._normalize_position(position), value, 1)
 
-    def set_bits(self, position: int, width: int, value: int | bytes = 0) -> None:
+    def set_bits(self, position: int, value: int | bytes | bitbuf = 0, size: int | None = None) -> None:
         """
-        Replace ``width`` bits starting at ``position`` with ``value``.
+        Replace ``size`` bits starting at ``position`` with ``value``.
 
         The least significant bit of ``value`` is written to ``position``.
 
         Args:
             position: Starting bit index for the write.
-            width: Number of bits to replace.
             value: Replacement value, interpreted in little-endian bit order.
+            size: Number of bits to replace. Ignored when ``value`` is a bitbuf.
         """
-        if width < 0:
-            raise ValueError("width must be non-negative")
-        if position < 0 or position + width > self.size:
+        value, size = self._sized_value(value, size)
+        if position < 0 or position + size > self.size:
             raise IndexError("bit range out of range")
-        if width == 0:
+        if size == 0:
             return
-        value = ensure_int(value)
         position += self._offset
-        mask = ((1 << width) - 1) << position
-        value_mask = (value & ((1 << width) - 1)) << position
+        mask = ((1 << size) - 1) << position
+        value_mask = (value & ((1 << size) - 1)) << position
         self.data = (self.data & ~mask) | value_mask
 
     def get_bits(self, position: int, width: int) -> int:
@@ -200,6 +255,18 @@ class bitbuf:
         if width == 0:
             return 0
         return (self.data >> (self._offset + position)) & ((1 << width) - 1)
+
+    def get_bits_as_buf(self, position: int, width: int) -> bitbuf:
+        """
+        Return ``width`` bits starting at ``position`` as a new bitbuf.
+        """
+        return bitbuf(self.get_bits(position, width), width)
+
+    def get_bits_as_bytes(self, position: int, width: int) -> bytes:
+        """
+        Return ``width`` bits starting at ``position`` as little-endian bytes.
+        """
+        return self.get_bits(position, width).to_bytes((width + 7) // 8, "little")
 
     def set_ones(self, position: int, width: int) -> None:
         """
@@ -265,36 +332,34 @@ class bitbuf:
             self._increase_offset(bits)
             self._trim()
 
-    def append_msb(self, width: int, value: int | bytes = 0) -> None:
+    def append_msb(self, value: int | bytes | bitbuf = 0, size: int | None = None) -> None:
         """
-        Append ``width`` bits to the most significant side and grow the buffer.
+        Append ``size`` bits to the most significant side and grow the buffer.
 
         Args:
-            width: Number of bits to append.
             value: Bits to append, interpreted in little-endian bit order.
+            size: Number of bits to append. Ignored when ``value`` is a bitbuf.
         """
-        if width < 0:
-            raise ValueError("width must be non-negative")
-        value = ensure_int(value) & ((1 << width) - 1 if width > 0 else 0)
+        value, size = self._sized_value(value, size)
+        value &= ((1 << size) - 1 if size > 0 else 0)
         self.data |= value << (self._offset + self.size)
-        self.size += width
+        self.size += size
 
-    def append_lsb(self, width: int, value: int | bytes = 0) -> None:
+    def append_lsb(self, value: int | bytes | bitbuf = 0, size: int | None = None) -> None:
         """
-        Append ``width`` bits to the least significant side and grow the buffer.
+        Append ``size`` bits to the least significant side and grow the buffer.
 
         Args:
-            width: Number of bits to append.
             value: Bits to append, interpreted in little-endian bit order.
+            size: Number of bits to append. Ignored when ``value`` is a bitbuf.
         """
-        if width < 0:
-            raise ValueError("width must be non-negative")
-        if width == 0:
+        value, size = self._sized_value(value, size)
+        if size == 0:
             return
-        value = ensure_int(value) & ((1 << width) - 1 if width > 0 else 0)
-        self._decrease_offset(width)
-        self.size += width
-        self.set_bits(0, width, value)
+        value &= (1 << size) - 1
+        self._decrease_offset(size)
+        self.size += size
+        self.set_bits(0, value, size)
         self._trim()
 
     def delete_msb(self, width: int) -> int:
@@ -342,6 +407,10 @@ class bitbuf:
             The current buffer value as a Python integer.
         """
         return (self.data >> self._offset) & self._mask()
+
+    def hex(self) -> str:
+        """Return ``hex(self.toint())``."""
+        return hex(self.toint())
 
     def size_bytes(self) -> int:
         """
