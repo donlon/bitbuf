@@ -164,6 +164,16 @@ def test_get_bits_as_buf_returns_sized_buffer():
     assert int(extracted) == 0b1011
 
 
+def test_slice_returns_sized_buffer():
+    buffer = bitbuf(0b1101_0110, 8)
+
+    extracted = buffer.slice(1, 4)
+
+    assert isinstance(extracted, bitbuf)
+    assert len(extracted) == 4
+    assert int(extracted) == 0b1011
+
+
 def test_get_bits_as_bytes_returns_little_endian_bytes():
     buffer = bitbuf(0x1234, 16)
 
@@ -596,43 +606,43 @@ def test_append_zero_width_does_not_change_buffer():
     assert int(buffer) == 0b1010
 
 
-def test_delete_msb_removes_high_bits_and_returns_lsb_aligned_value():
+def test_delete_high_discards_high_bits():
     buffer = bitbuf(0b1101_0110, 8)
 
     removed = buffer.delete_high(3)
 
-    assert removed == 0b110
+    assert removed is None
     assert len(buffer) == 5
     assert int(buffer) == 0b10110
 
 
-def test_delete_lsb_removes_low_bits_and_returns_them():
+def test_delete_low_discards_low_bits():
     buffer = bitbuf(0b1101_0110, 8)
 
     removed = buffer.delete_low(3)
 
-    assert removed == 0b110
+    assert removed is None
     assert len(buffer) == 5
     assert int(buffer) == 0b11010
 
 
-def test_delete_lsb_uses_bounded_internal_offset():
+def test_delete_low_uses_bounded_internal_offset():
     buffer = bitbuf(0x1234_5678_9ABC_DEF0, 80)
 
     removed = buffer.delete_low(7)
 
-    assert removed == 0x1234_5678_9ABC_DEF0 & 0b1111111
+    assert removed is None
     assert buffer._offset == 7
     assert len(buffer) == 73
     assert int(buffer) == 0x1234_5678_9ABC_DEF0 >> 7
 
 
-def test_delete_lsb_normalizes_offset_by_32_bit_chunks():
+def test_delete_low_normalizes_offset_by_32_bit_chunks():
     buffer = bitbuf(0x1234_5678_9ABC_DEF0, 96)
 
     removed = buffer.delete_low(45)
 
-    assert removed == 0x1234_5678_9ABC_DEF0 & ((1 << 45) - 1)
+    assert removed is None
     assert 0 <= buffer._offset <= 31
     assert buffer._offset == 13
     assert len(buffer) == 51
@@ -662,7 +672,7 @@ def test_delete_all_bits():
 
     removed = buffer.delete_high(4)
 
-    assert removed == 0b1111
+    assert removed is None
     assert len(buffer) == 0
     assert int(buffer) == 0
 
@@ -670,8 +680,8 @@ def test_delete_all_bits():
 def test_delete_zero_width_does_not_change_buffer():
     buffer = bitbuf(0b1010, 4)
 
-    assert buffer.delete_high(0) == 0
-    assert buffer.delete_low(0) == 0
+    assert buffer.delete_high(0) is None
+    assert buffer.delete_low(0) is None
     assert len(buffer) == 4
     assert int(buffer) == 0b1010
 
@@ -687,6 +697,48 @@ def test_delete_rejects_invalid_widths():
         buffer.delete_high(5)
     with pytest.raises(IndexError):
         buffer.delete_low(5)
+
+
+def test_pop_high_removes_and_returns_lsb_aligned_value():
+    buffer = bitbuf(0b1101_0110, 8)
+
+    removed = buffer.pop_high(3)
+
+    assert removed == 0b110
+    assert len(buffer) == 5
+    assert int(buffer) == 0b10110
+
+
+def test_pop_low_removes_and_returns_low_bits():
+    buffer = bitbuf(0b1101_0110, 8)
+
+    removed = buffer.pop_low(3)
+
+    assert removed == 0b110
+    assert len(buffer) == 5
+    assert int(buffer) == 0b11010
+
+
+def test_pop_zero_width_does_not_change_buffer():
+    buffer = bitbuf(0b1010, 4)
+
+    assert buffer.pop_high(0) == 0
+    assert buffer.pop_low(0) == 0
+    assert len(buffer) == 4
+    assert int(buffer) == 0b1010
+
+
+def test_pop_rejects_invalid_widths():
+    buffer = bitbuf(0, 4)
+
+    with pytest.raises(ValueError):
+        buffer.pop_high(-1)
+    with pytest.raises(ValueError):
+        buffer.pop_low(-1)
+    with pytest.raises(IndexError):
+        buffer.pop_high(5)
+    with pytest.raises(IndexError):
+        buffer.pop_low(5)
 
 
 def test_int_method_and_builtin_conversion():

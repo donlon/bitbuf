@@ -235,6 +235,12 @@ class bitbuf:
         """
         return bitbuf(self.get_bits(pos, width), width)
 
+    def slice(self, pos: int, width: int) -> bitbuf:
+        """
+        Return ``width`` bits starting at ``pos`` as a new bitbuf.
+        """
+        return self.get_bits_as_buf(pos, width)
+
     def get_bits_as_bytes(self, pos: int, width: int) -> bytes:
         """
         Return ``width`` bits starting at ``pos`` as little-endian bytes.
@@ -387,7 +393,30 @@ class bitbuf:
         self._data |= value << (self._offset + self._width)
         self._width += width
 
-    def delete_low(self, width: int) -> int:
+    def delete_low(self, width: int) -> None:
+        """Discard ``width`` bits from the least significant side."""
+        if width < 0:
+            raise ValueError("width must be non-negative")
+        if width > self._width:
+            raise IndexError("bit range out of range")
+        if width == 0:
+            return
+        self._width -= width
+        self._increase_offset(width)
+        self._trim()
+
+    def delete_high(self, width: int) -> None:
+        """Discard ``width`` bits from the most significant side."""
+        if width < 0:
+            raise ValueError("width must be non-negative")
+        if width > self._width:
+            raise IndexError("bit range out of range")
+        if width == 0:
+            return
+        self._width -= width
+        self._trim()
+
+    def pop_low(self, width: int) -> int:
         """Remove and return ``width`` bits from the least significant side."""
         if width < 0:
             raise ValueError("width must be non-negative")
@@ -396,12 +425,10 @@ class bitbuf:
         if width == 0:
             return 0
         value = self.get_bits(0, width)
-        self._width -= width
-        self._increase_offset(width)
-        self._trim()
+        self.delete_low(width)
         return value
 
-    def delete_high(self, width: int) -> int:
+    def pop_high(self, width: int) -> int:
         """Remove and return ``width`` bits from the most significant side."""
         if width < 0:
             raise ValueError("width must be non-negative")
@@ -411,8 +438,7 @@ class bitbuf:
             return 0
         pos = self._width - width
         value = self.get_bits(pos, width)
-        self._width -= width
-        self._trim()
+        self.delete_high(width)
         return value
 
     def bytes(self) -> bytes:

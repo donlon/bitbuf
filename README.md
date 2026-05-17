@@ -67,6 +67,7 @@ buf = bitbuf(0x1234, 16)
 
 field = buf[4:12]
 field_buf = buf.get_bits_as_buf(4, 8)
+field_slice = buf.slice(4, 8)
 field_bytes = buf.get_bits_as_bytes(4, 8)
 buf[4:12] = 0xAB
 
@@ -99,11 +100,11 @@ buf >>= 1            # same as buf.rshift(1)
 ```python
 buf = bitbuf(0b0011, 4)
 
-buf.append_msb(0b101, 3)  # 0b101_0011
-buf.append_lsb(0b10, 2)   # 0b1010011_10
+buf.append_high(0b101, 3)  # 0b101_0011
+buf.append_low(0b10, 2)    # 0b1010011_10
 
-low = buf.delete_lsb(2)
-high = buf.delete_msb(3)
+buf.delete_low(2)           # discard low bits
+high = buf.pop_high(3)      # remove and return high bits
 ```
 
 ### Replace or Clear Contents
