@@ -4,12 +4,13 @@ from typing import TypeAlias
 
 from ._utils import ensure_int
 
-input_types: TypeAlias = int | bytes | bytearray | memoryview | 'bitbuf'
+input_types: TypeAlias = int | bytes | bytearray | memoryview | "bitbuf"
+
 
 class bitbuf:
     """A mutable little-endian bit buffer backed by Python's ``int``.
 
-    Bits are indexed from least significant to most significant, so position
+    Bits are indexed from least significant to most significant, so pos
     ``0`` refers to the least significant bit of ``data``. The buffer stores an
     explicit bit ``size`` and keeps its integer payload masked to that width.
 
@@ -25,7 +26,7 @@ class bitbuf:
         """
         data, self.size = self._sized_value(value, size)
         self._offset = 0
-        self.data = data
+        self._data = data
         self._trim()
 
     @classmethod
@@ -120,16 +121,16 @@ class bitbuf:
 
     def _trim(self) -> None:
         if self.size == 0:
-            self.data = 0
+            self._data = 0
             self._offset = 0
             return
-        self.data &= self._mask() << self._offset
+        self._data &= self._mask() << self._offset
 
     def _increase_offset(self, bits: int) -> None:
         self._offset += bits
         if self._offset >= 32:
             words = self._offset // 32
-            self.data >>= words * 32
+            self._data >>= words * 32
             self._offset %= 32
 
     def _decrease_offset(self, bits: int) -> None:
@@ -137,7 +138,7 @@ class bitbuf:
             self._offset -= bits
             return
         words = (bits - self._offset + 31) // 32
-        self.data <<= words * 32
+        self._data <<= words * 32
         self._offset += words * 32 - bits
 
     def _slice_bounds(self, key: slice) -> tuple[int, int]:
@@ -151,13 +152,13 @@ class bitbuf:
             raise ValueError("slice stop must be greater than or equal to start")
         return start, stop
 
-    def _normalize_position(self, position: int, allow_end: bool = False) -> int:
-        if position < 0:
-            position += self.size
+    def _normalize_position(self, pos: int, allow_end: bool = False) -> int:
+        if pos < 0:
+            pos += self.size
         upper = self.size if allow_end else self.size - 1
-        if position < 0 or position > upper:
-            raise IndexError("bit position out of range")
-        return position
+        if pos < 0 or pos > upper:
+            raise IndexError("bit pos out of range")
+        return pos
 
     def _repr_hex(self) -> str:
         hex_digits = max(1, (self.size + 3) // 4)
@@ -194,114 +195,114 @@ class bitbuf:
         """
         data, self.size = self._sized_value(value, size)
         self._offset = 0
-        self.data = data
+        self._data = data
         self._trim()
 
     def clear(self) -> None:
         """Clear all bits while keeping the current size unchanged."""
-        self.data = 0
+        self._data = 0
         self._offset = 0
 
-    def get_bit(self, position: int) -> int:
+    def get_bit(self, pos: int) -> int:
         """
-        Return the bit value at ``position``.
+        Return the bit value at ``pos``.
 
         Args:
-            position: Bit index, where 0 refers to the least significant bit.
+            pos: Bit index, where 0 refers to the least significant bit.
         """
-        position = self._normalize_position(position)
-        return (self.data >> (self._offset + position)) & 1
+        pos = self._normalize_position(pos)
+        return (self._data >> (self._offset + pos)) & 1
 
-    def set_bit(self, position: int, value: int = 1) -> None:
+    def set_bit(self, pos: int, value: int = 1) -> None:
         """
-        Set the bit at ``position`` to ``value``.
+        Set the bit at ``pos`` to ``value``.
 
         Args:
-            position: Bit index, where 0 refers to the least significant bit.
+            pos: Bit index, where 0 refers to the least significant bit.
             value: Bit value to write. Non-zero values are truncated to 1.
         """
-        self.set_bits(self._normalize_position(position), value, 1)
+        self.set_bits(self._normalize_position(pos), value, 1)
 
-    def set_bits(self, position: int, value: input_types = 0, size: int | None = None) -> None:
+    def set_bits(self, pos: int, value: input_types = 0, size: int | None = None) -> None:
         """
-        Replace ``size`` bits starting at ``position`` with ``value``.
+        Replace ``size`` bits starting at ``pos`` with ``value``.
 
-        The least significant bit of ``value`` is written to ``position``.
+        The least significant bit of ``value`` is written to ``pos``.
 
         Args:
-            position: Starting bit index for the write.
+            pos: Starting bit index for the write.
             value: Replacement value, interpreted in little-endian bit order.
             size: Number of bits to replace. Ignored when ``value`` is a bitbuf.
         """
         value, size = self._sized_value(value, size)
-        if position < 0 or position + size > self.size:
+        if pos < 0 or pos + size > self.size:
             raise IndexError("bit range out of range")
         if size == 0:
             return
-        position += self._offset
-        mask = ((1 << size) - 1) << position
-        value_mask = (value & ((1 << size) - 1)) << position
-        self.data = (self.data & ~mask) | value_mask
+        pos += self._offset
+        mask = ((1 << size) - 1) << pos
+        value_mask = (value & ((1 << size) - 1)) << pos
+        self._data = (self._data & ~mask) | value_mask
 
-    def get_bits(self, position: int, width: int) -> int:
+    def get_bits(self, pos: int, width: int) -> int:
         """
-        Return ``width`` bits starting at ``position`` as an integer.
+        Return ``width`` bits starting at ``pos`` as an integer.
 
         Args:
-            position: Starting bit index for the read.
+            pos: Starting bit index for the read.
             width: Number of bits to read.
         """
         if width < 0:
             raise ValueError("width must be non-negative")
-        if position < 0 or position + width > self.size:
+        if pos < 0 or pos + width > self.size:
             raise IndexError("bit range out of range")
         if width == 0:
             return 0
-        return (self.data >> (self._offset + position)) & ((1 << width) - 1)
+        return (self._data >> (self._offset + pos)) & ((1 << width) - 1)
 
-    def get_bits_as_buf(self, position: int, width: int) -> bitbuf:
+    def get_bits_as_buf(self, pos: int, width: int) -> bitbuf:
         """
-        Return ``width`` bits starting at ``position`` as a new bitbuf.
+        Return ``width`` bits starting at ``pos`` as a new bitbuf.
         """
-        return bitbuf(self.get_bits(position, width), width)
+        return bitbuf(self.get_bits(pos, width), width)
 
-    def get_bits_as_bytes(self, position: int, width: int) -> bytes:
+    def get_bits_as_bytes(self, pos: int, width: int) -> bytes:
         """
-        Return ``width`` bits starting at ``position`` as little-endian bytes.
+        Return ``width`` bits starting at ``pos`` as little-endian bytes.
         """
-        return self.get_bits(position, width).to_bytes((width + 7) // 8, "little")
+        return self.get_bits(pos, width).to_bytes((width + 7) // 8, "little")
 
-    def set_ones(self, position: int, width: int) -> None:
+    def set_ones(self, pos: int, width: int) -> None:
         """
-        Set ``width`` bits starting at ``position`` to 1.
+        Set ``width`` bits starting at ``pos`` to 1.
 
         Args:
-            position: Starting bit index for the write.
+            pos: Starting bit index for the write.
             width: Number of bits to set.
         """
         if width < 0:
             raise ValueError("width must be non-negative")
-        if position < 0 or position + width > self.size:
+        if pos < 0 or pos + width > self.size:
             raise IndexError("bit range out of range")
         if width == 0:
             return
-        self.data |= ((1 << width) - 1) << (self._offset + position)
+        self._data |= ((1 << width) - 1) << (self._offset + pos)
 
-    def set_zeros(self, position: int, width: int) -> None:
+    def set_zeros(self, pos: int, width: int) -> None:
         """
-        Set ``width`` bits starting at ``position`` to 0.
+        Set ``width`` bits starting at ``pos`` to 0.
 
         Args:
-            position: Starting bit index for the write.
+            pos: Starting bit index for the write.
             width: Number of bits to clear.
         """
         if width < 0:
             raise ValueError("width must be non-negative")
-        if position < 0 or position + width > self.size:
+        if pos < 0 or pos + width > self.size:
             raise IndexError("bit range out of range")
         if width == 0:
             return
-        self.data &= ~(((1 << width) - 1) << (self._offset + position))
+        self._data &= ~(((1 << width) - 1) << (self._offset + pos))
 
     def lshift(self, bits: int) -> None:
         """
@@ -313,7 +314,7 @@ class bitbuf:
         if bits < 0:
             raise ValueError("bits must be non-negative")
         if bits >= self.size:
-            self.data = 0
+            self._data = 0
             self._offset = 0
         else:
             self._decrease_offset(bits)
@@ -329,7 +330,7 @@ class bitbuf:
         if bits < 0:
             raise ValueError("bits must be non-negative")
         if bits >= self.size:
-            self.data = 0
+            self._data = 0
             self._offset = 0
         else:
             self._increase_offset(bits)
@@ -344,8 +345,8 @@ class bitbuf:
             size: Number of bits to append. Ignored when ``value`` is a bitbuf.
         """
         value, size = self._sized_value(value, size)
-        value &= ((1 << size) - 1 if size > 0 else 0)
-        self.data |= value << (self._offset + self.size)
+        value &= (1 << size) - 1 if size > 0 else 0
+        self._data |= value << (self._offset + self.size)
         self.size += size
 
     def append_lsb(self, value: input_types = 0, size: int | None = None) -> None:
@@ -373,8 +374,8 @@ class bitbuf:
             raise IndexError("bit range out of range")
         if width == 0:
             return 0
-        position = self.size - width
-        value = self.get_bits(position, width)
+        pos = self.size - width
+        value = self.get_bits(pos, width)
         self.size -= width
         self._trim()
         return value
@@ -400,7 +401,7 @@ class bitbuf:
         Returns:
             The current buffer value serialized to the minimum number of bytes.
         """
-        return self.int().to_bytes(self.size_bytes(), "little")
+        return self.int().to_bytes(self.size_bytes, "little")
 
     def int(self) -> int:
         """
@@ -409,7 +410,7 @@ class bitbuf:
         Returns:
             The current buffer value as a Python integer.
         """
-        return (self.data >> self._offset) & self._mask()
+        return (self._data >> self._offset) & self._mask()
 
     def hex(self) -> str:
         """Return ``hex(self.int())``."""
