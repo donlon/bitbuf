@@ -455,6 +455,10 @@ class bitbuf:
         """
         return self.int().to_bytes(self.size_bytes, "little")
 
+    def hex(self) -> str:
+        """Return ``hex(self.int())``."""
+        return hex(self.int())
+
     def int(self) -> int:
         """
         Return the buffer contents as an integer.
@@ -463,10 +467,6 @@ class bitbuf:
             The current buffer value as a Python integer.
         """
         return (self._data >> self._offset) & self._mask()
-
-    def hex(self) -> str:
-        """Return ``hex(self.int())``."""
-        return hex(self.int())
 
     @property
     def width(self) -> int:
