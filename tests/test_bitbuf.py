@@ -597,10 +597,10 @@ def test_delete_rejects_invalid_widths():
         buffer.delete_lsb(5)
 
 
-def test_toint_and_int_conversion():
+def test_int_method_and_builtin_conversion():
     buffer = bitbuf(0b1010, 4)
 
-    assert buffer.toint() == 0b1010
+    assert buffer.int() == 0b1010
     assert int(buffer) == 0b1010
 
 
@@ -611,11 +611,11 @@ def test_hex_conversion():
     assert hex(buffer) == "0xabc"
 
 
-def test_tobytes_and_bytes_conversion_use_minimum_little_endian_bytes():
+def test_bytes_method_and_builtin_conversion_use_minimum_little_endian_bytes():
     buffer = bitbuf(0xABC, 12)
 
     assert buffer.size_bytes() == 2
-    assert buffer.tobytes() == b"\xbc\x0a"
+    assert buffer.bytes() == b"\xbc\x0a"
     assert bytes(buffer) == b"\xbc\x0a"
 
 

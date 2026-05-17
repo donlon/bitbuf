@@ -56,13 +56,13 @@ class bitbuf:
         return self.size
 
     def __int__(self) -> int:
-        return self.toint()
+        return self.int()
 
     def __index__(self) -> int:
-        return self.toint()
+        return self.int()
 
     def __bytes__(self) -> bytes:
-        return self.tobytes()
+        return self.bytes()
 
     def __repr__(self) -> str:
         return f"bitbuf(len={self.size}, hex={self._repr_hex()})"
@@ -390,16 +390,16 @@ class bitbuf:
         self._trim()
         return value
 
-    def tobytes(self) -> bytes:
+    def bytes(self) -> bytes:
         """
         Return the buffer contents as little-endian bytes.
 
         Returns:
             The current buffer value serialized to the minimum number of bytes.
         """
-        return self.toint().to_bytes(self.size_bytes(), "little")
+        return self.int().to_bytes(self.size_bytes(), "little")
 
-    def toint(self) -> int:
+    def int(self) -> int:
         """
         Return the buffer contents as an integer.
 
@@ -409,8 +409,8 @@ class bitbuf:
         return (self.data >> self._offset) & self._mask()
 
     def hex(self) -> str:
-        """Return ``hex(self.toint())``."""
-        return hex(self.toint())
+        """Return ``hex(self.int())``."""
+        return hex(self.int())
 
     def size_bytes(self) -> int:
         """

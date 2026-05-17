@@ -124,8 +124,8 @@ as_int = int(buf)
 as_bytes = bytes(buf)
 as_hex = hex(buf)
 
-assert as_int == buf.toint()
-assert as_bytes == buf.tobytes()
+assert as_int == buf.int()
+assert as_bytes == buf.bytes()
 assert as_hex == buf.hex()
 ```
 
