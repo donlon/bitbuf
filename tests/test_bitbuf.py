@@ -3,19 +3,19 @@ import pytest
 from bitbuf import bitbuf
 
 
-def test_init_masks_data_to_size():
+def test_init_masks_data_to_width():
     buffer = bitbuf(0b11110011, 4)
 
     assert len(buffer) == 4
     assert int(buffer) == 0b0011
 
 
-def test_init_rejects_negative_size():
-    with pytest.raises(ValueError, match="size"):
+def test_init_rejects_negative_width():
+    with pytest.raises(ValueError, match="width"):
         bitbuf(0, -1)
 
 
-def test_init_accepts_bitbuf_value_and_ignores_size():
+def test_init_accepts_bitbuf_value_and_ignores_width():
     source = bitbuf(0b101101, 6)
 
     buffer = bitbuf(source, 99)
@@ -38,15 +38,15 @@ def test_repr_abbreviates_very_long_values():
     assert rendered.endswith("ffffffffffffffff)")
 
 
-def test_from_int_uses_bit_length_when_size_is_omitted():
+def test_from_int_uses_bit_length_when_width_is_omitted():
     buffer = bitbuf.from_int(0b10010)
 
     assert len(buffer) == 5
     assert int(buffer) == 0b10010
 
 
-def test_from_int_accepts_explicit_size_and_trims():
-    buffer = bitbuf.from_int(0b11110000, size=4)
+def test_from_int_accepts_explicit_width_and_trims():
+    buffer = bitbuf.from_int(0b11110000, width=4)
 
     assert len(buffer) == 4
     assert int(buffer) == 0
@@ -72,8 +72,8 @@ def test_zeros_and_ones_constructors():
     assert int(bitbuf.ones(5)) == 0b11111
 
 
-def test_ones_rejects_negative_size():
-    with pytest.raises(ValueError, match="size"):
+def test_ones_rejects_negative_width():
+    with pytest.raises(ValueError, match="width"):
         bitbuf.ones(-1)
 
 
@@ -251,7 +251,7 @@ def test_set_bits_accepts_bytearray_and_memoryview():
     assert int(from_memoryview) == 0x1234
 
 
-def test_set_bits_accepts_bitbuf_value_and_ignores_size():
+def test_set_bits_accepts_bitbuf_value_and_ignores_width():
     buffer = bitbuf(0, 8)
     source = bitbuf(0b101101, 6)
 
@@ -356,7 +356,7 @@ def test_assign_replaces_entire_buffer():
     assert int(buffer) == 0x1234
 
 
-def test_assign_accepts_bitbuf_value_and_ignores_size():
+def test_assign_accepts_bitbuf_value_and_ignores_width():
     buffer = bitbuf(0, 1)
     source = bitbuf(0b101101, 6)
 
@@ -379,7 +379,7 @@ def test_assign_accepts_bytearray_and_memoryview():
     assert int(from_memoryview) == 0x1234
 
 
-def test_clear_keeps_size_and_resets_bits():
+def test_clear_keeps_width_and_resets_bits():
     buffer = bitbuf(0xFFFF, 16)
 
     buffer.delete_low(5)
@@ -390,7 +390,7 @@ def test_clear_keeps_size_and_resets_bits():
     assert buffer._offset == 0
 
 
-def test_toggle_flips_bits_and_keeps_size():
+def test_toggle_flips_bits_and_keeps_width():
     buffer = bitbuf(0b1010, 4)
 
     buffer.toggle()
@@ -419,7 +419,7 @@ def test_toggle_empty_buffer_is_noop():
     assert int(buffer) == 0
 
 
-def test_toggle_flips_bits_and_keeps_size_ranged():
+def test_toggle_flips_bits_and_keeps_width_ranged():
     buffer = bitbuf(0b1010, 4)
 
     buffer.toggle(1, 2)
@@ -439,7 +439,7 @@ def test_toggle_compensates_internal_offset_ranged():
     assert int(buffer) == 0b10101
 
 
-def test_lshift_mutates_in_place_and_preserves_size():
+def test_lshift_mutates_in_place_and_preserves_width():
     buffer = bitbuf(0b0011, 4)
 
     buffer.lshift(2)
@@ -448,7 +448,7 @@ def test_lshift_mutates_in_place_and_preserves_size():
     assert int(buffer) == 0b1100
 
 
-def test_lshift_clears_when_shift_is_at_least_size():
+def test_lshift_clears_when_shift_is_at_least_width():
     buffer = bitbuf(0b1111, 4)
 
     buffer.lshift(4)
@@ -461,7 +461,7 @@ def test_lshift_rejects_negative_bits():
         bitbuf(0, 4).lshift(-1)
 
 
-def test_rshift_mutates_in_place_and_preserves_size():
+def test_rshift_mutates_in_place_and_preserves_width():
     buffer = bitbuf(0b1100, 4)
 
     buffer.rshift(2)
@@ -554,7 +554,7 @@ def test_append_lsb_normalizes_offset_by_32_bit_chunks():
     assert int(buffer) == (0x1234_5678 << 45) | (0x1234_5678_9ABC & ((1 << 45) - 1))
 
 
-def test_append_accepts_bitbuf_value_and_ignores_size():
+def test_append_accepts_bitbuf_value_and_ignores_width():
     msb = bitbuf(0b01, 2)
     lsb = bitbuf(0b01, 2)
     value = bitbuf(0b101, 3)
