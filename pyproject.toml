@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "bitbuf"
 version = "0.1.1"
-description = "Mutable LSB-first bit buffer utilities."
+description = "A fast and lightweight bit-level mutation library for Python."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -32,3 +32,14 @@ pythonpath = ["."]
 
 [tool.hatch.build.targets.wheel]
 packages = ["bitbuf"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+ignore = [
+  'E722', # Bare-except
+]
+
+[tool.ruff.format]
