@@ -72,19 +72,19 @@ class bitbuf:
         return f"bitbuf(len={self._width}, hex={self._repr_hex()})"
 
     def __getitem__(self, key: int | slice) -> int:
-        if isinstance(key, slice):
+        if type(key) is slice:
             start, stop = self._slice_bounds(key)
             return self.get_bits(start, stop - start)
-        if isinstance(key, int):
+        if type(key) is int:
             return self.get_bit(key)
         raise TypeError("bit index must be an int or slice")
 
     def __setitem__(self, key: int | slice, value: input_types) -> None:
-        if isinstance(key, slice):
+        if type(key) is slice:
             start, stop = self._slice_bounds(key)
             self.set_bits(start, value, stop - start)
             return
-        if isinstance(key, int):
+        if type(key) is int:
             self.set_bit(key, value)
             return
         raise TypeError("bit index must be an int or slice")
@@ -104,9 +104,9 @@ class bitbuf:
 
     @staticmethod
     def _sized_value(value: input_types, width: int | None) -> tuple[int, int]:
-        if isinstance(value, bitbuf):
+        if type(value) is bitbuf:
             return value.int(), len(value)
-        if isinstance(value, (bytes, bytearray, memoryview)):
+        if type(value) in (bytes, bytearray, memoryview):
             data = ensure_int(value)
             if width is None:
                 width = len(value) * 8
@@ -276,7 +276,7 @@ class bitbuf:
         if pos < 0 or pos + width > self._width:
             raise IndexError("bit range out of range")
         if width == 0:
-            return
+            return self
         pos += self._offset
         mask = ((1 << width) - 1) << pos
         value_mask = (value & ((1 << width) - 1)) << pos
@@ -296,7 +296,7 @@ class bitbuf:
         if pos < 0 or pos + width > self._width:
             raise IndexError("bit range out of range")
         if width == 0:
-            return
+            return self
         self._data |= ((1 << width) - 1) << (self._offset + pos)
         return self
 
@@ -313,7 +313,7 @@ class bitbuf:
         if pos < 0 or pos + width > self._width:
             raise IndexError("bit range out of range")
         if width == 0:
-            return
+            return self
         self._data &= ~(((1 << width) - 1) << (self._offset + pos))
         return self
 
@@ -322,7 +322,7 @@ class bitbuf:
         Flip bits of specified range. If width is unassigneed, it toggles all bits starts from ``pos`` up to highest bit.
         """
         if self._width == 0 and pos == 0 and width is None:
-            return
+            return self
         if pos < 0 or pos >= self._width:
             raise IndexError("bit range out of range")
         if width is None:
@@ -333,7 +333,7 @@ class bitbuf:
         if pos + width > self._width:
             raise IndexError("bit range out of range")
         if width == 0 or self._width == 0:
-            return 0
+            return self
         mask = ((1 << width) - 1) << (pos + self._offset)
         self._data ^= mask
         return self
@@ -382,7 +382,7 @@ class bitbuf:
         """
         value, width = self._sized_value(value, width)
         if width == 0:
-            return
+            return self
         value &= (1 << width) - 1
         self._decrease_offset(width)
         self._width += width
@@ -411,7 +411,7 @@ class bitbuf:
         if width > self._width:
             raise IndexError("bit range out of range")
         if width == 0:
-            return
+            return self
         self._width -= width
         self._increase_offset(width)
         self._trim()
@@ -424,7 +424,7 @@ class bitbuf:
         if width > self._width:
             raise IndexError("bit range out of range")
         if width == 0:
-            return
+            return self
         self._width -= width
         self._trim()
         return self

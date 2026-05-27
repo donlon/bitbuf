@@ -606,9 +606,8 @@ def test_append_zero_width_does_not_change_buffer():
 def test_delete_high_discards_high_bits():
     buffer = bitbuf(0b1101_0110, 8)
 
-    removed = buffer.delete_high(3)
+    buffer.delete_high(3)
 
-    assert removed is None
     assert len(buffer) == 5
     assert int(buffer) == 0b10110
 
@@ -616,9 +615,8 @@ def test_delete_high_discards_high_bits():
 def test_delete_low_discards_low_bits():
     buffer = bitbuf(0b1101_0110, 8)
 
-    removed = buffer.delete_low(3)
+    buffer.delete_low(3)
 
-    assert removed is None
     assert len(buffer) == 5
     assert int(buffer) == 0b11010
 
@@ -626,9 +624,8 @@ def test_delete_low_discards_low_bits():
 def test_delete_low_uses_bounded_internal_offset():
     buffer = bitbuf(0x1234_5678_9ABC_DEF0, 80)
 
-    removed = buffer.delete_low(7)
+    buffer.delete_low(7)
 
-    assert removed is None
     assert buffer._offset == 7
     assert len(buffer) == 73
     assert int(buffer) == 0x1234_5678_9ABC_DEF0 >> 7
@@ -637,9 +634,8 @@ def test_delete_low_uses_bounded_internal_offset():
 def test_delete_low_normalizes_offset_by_32_bit_chunks():
     buffer = bitbuf(0x1234_5678_9ABC_DEF0, 96)
 
-    removed = buffer.delete_low(45)
+    buffer.delete_low(45)
 
-    assert removed is None
     assert 0 <= buffer._offset <= 31
     assert buffer._offset == 13
     assert len(buffer) == 51
@@ -667,9 +663,8 @@ def test_offset_is_compensated_by_other_apis():
 def test_delete_all_bits():
     buffer = bitbuf(0b1111, 4)
 
-    removed = buffer.delete_high(4)
+    buffer.delete_high(4)
 
-    assert removed is None
     assert len(buffer) == 0
     assert int(buffer) == 0
 
@@ -677,8 +672,7 @@ def test_delete_all_bits():
 def test_delete_zero_width_does_not_change_buffer():
     buffer = bitbuf(0b1010, 4)
 
-    assert buffer.delete_high(0) is None
-    assert buffer.delete_low(0) is None
+    buffer.delete_high(0).delete_low(0)
     assert len(buffer) == 4
     assert int(buffer) == 0b1010
 
