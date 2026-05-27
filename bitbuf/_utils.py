@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+
+
 def ensure_int(value: int | bytes | bytearray | memoryview) -> int:
     """Return *value* as an integer using little-endian byte order."""
     if isinstance(value, int):
