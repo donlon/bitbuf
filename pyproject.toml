@@ -1,6 +1,6 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["scikit-build-core>=0.10", "nanobind>=2.4"]
+build-backend = "scikit_build_core.build"
 
 [project]
 name = "bitbuf"
@@ -25,13 +25,21 @@ classifiers = [
 [project.optional-dependencies]
 test = ["pytest>=8"]
 
+[tool.scikit-build]
+minimum-version = "0.10"
+build-dir = "build/{wheel_tag}"
+
+[tool.scikit-build.wheel]
+packages = ["bitbuf"]
+
 [tool.pytest.ini_options]
 addopts = "-p no:cacheprovider"
 testpaths = ["tests"]
 pythonpath = ["."]
 
-[tool.hatch.build.targets.wheel]
-packages = ["bitbuf"]
+[tool.cibuildwheel]
+build = "cp3*-*"
+skip = ["pp*", "*musllinux*"]
 
 [tool.ruff]
 line-length = 120
