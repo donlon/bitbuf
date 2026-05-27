@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TypeAlias, Union
+from typing import Self, TypeAlias, Union
 
 from ._utils import ensure_int
 
@@ -89,11 +89,11 @@ class bitbuf:
             return
         raise TypeError("bit index must be an int or slice")
 
-    def __ilshift__(self, bits: int) -> bitbuf:
+    def __ilshift__(self, bits: int) -> Self:
         self.lshift(bits)
         return self
 
-    def __irshift__(self, bits: int) -> bitbuf:
+    def __irshift__(self, bits: int) -> Self:
         self.rshift(bits)
         return self
 
@@ -169,7 +169,7 @@ class bitbuf:
         high = self.get_bits(self._width - high_width, high_width)
         return f"0x{high:x}...{low:016x}"
 
-    def assign(self, value: input_types = 0, width: int | None = None) -> None:
+    def assign(self, value: input_types = 0, width: int | None = None) -> Self:
         """
         Replace the whole buffer with ``value`` and ``width``.
 
@@ -182,8 +182,9 @@ class bitbuf:
         self._offset = 0
         self._data = data
         self._trim()
+        return self
 
-    def resize(self, width: int) -> None:
+    def resize(self, width: int) -> Self:
         """
         Resize the buffer to ``width`` bits.
 
@@ -197,11 +198,13 @@ class bitbuf:
         if self._width < 0:
             raise ValueError("width must be non-negative")
         self._trim()
+        return self
 
-    def clear(self) -> None:
+    def clear(self) -> Self:
         """Clear all bits while keeping the current width unchanged."""
         self._data = 0
         self._offset = 0
+        return self
 
     def get_bit(self, pos: int) -> int:
         """
@@ -247,7 +250,7 @@ class bitbuf:
         """
         return bitbuf(self.get_bits(pos, width), width)
 
-    def set_bit(self, pos: int, value: int = 1) -> None:
+    def set_bit(self, pos: int, value: int = 1) -> Self:
         """
         Set the bit at ``pos`` to ``value``.
 
@@ -256,8 +259,9 @@ class bitbuf:
             value: Bit value to write. Non-zero values are truncated to 1.
         """
         self.set_bits(self._normalize_position(pos), value, 1)
+        return self
 
-    def set_bits(self, pos: int, value: input_types = 0, width: int | None = None) -> None:
+    def set_bits(self, pos: int, value: input_types = 0, width: int | None = None) -> Self:
         """
         Replace ``width`` bits starting at ``pos`` with ``value``.
 
@@ -277,8 +281,9 @@ class bitbuf:
         mask = ((1 << width) - 1) << pos
         value_mask = (value & ((1 << width) - 1)) << pos
         self._data = (self._data & ~mask) | value_mask
+        return self
 
-    def set_ones(self, pos: int, width: int) -> None:
+    def set_ones(self, pos: int, width: int) -> Self:
         """
         Set ``width`` bits starting at ``pos`` to 1.
 
@@ -293,8 +298,9 @@ class bitbuf:
         if width == 0:
             return
         self._data |= ((1 << width) - 1) << (self._offset + pos)
+        return self
 
-    def set_zeros(self, pos: int, width: int) -> None:
+    def set_zeros(self, pos: int, width: int) -> Self:
         """
         Set ``width`` bits starting at ``pos`` to 0.
 
@@ -309,8 +315,9 @@ class bitbuf:
         if width == 0:
             return
         self._data &= ~(((1 << width) - 1) << (self._offset + pos))
+        return self
 
-    def toggle(self, pos: int = 0, width: int | None = None) -> None:
+    def toggle(self, pos: int = 0, width: int | None = None) -> Self:
         """
         Flip bits of specified range. If width is unassigneed, it toggles all bits starts from ``pos`` up to highest bit.
         """
@@ -329,8 +336,9 @@ class bitbuf:
             return 0
         mask = ((1 << width) - 1) << (pos + self._offset)
         self._data ^= mask
+        return self
 
-    def lshift(self, bits: int) -> None:
+    def lshift(self, bits: int) -> Self:
         """
         Shift the buffer left by ``bits`` while keeping the width unchanged.
 
@@ -345,8 +353,9 @@ class bitbuf:
         else:
             self._decrease_offset(bits)
             self._trim()
+        return self
 
-    def rshift(self, bits: int) -> None:
+    def rshift(self, bits: int) -> Self:
         """
         Shift the buffer right by ``bits`` while keeping the width unchanged.
 
@@ -361,8 +370,9 @@ class bitbuf:
         else:
             self._increase_offset(bits)
             self._trim()
+        return self
 
-    def append_low(self, value: input_types = 0, width: int | None = None) -> None:
+    def append_low(self, value: input_types = 0, width: int | None = None) -> Self:
         """
         Append ``width`` bits to the least significant side and grow the buffer.
 
@@ -378,8 +388,9 @@ class bitbuf:
         self._width += width
         self.set_bits(0, value, width)
         self._trim()
+        return self
 
-    def append_high(self, value: input_types = 0, width: int | None = None) -> None:
+    def append_high(self, value: input_types = 0, width: int | None = None) -> Self:
         """
         Append ``width`` bits to the most significant side and grow the buffer.
 
@@ -391,8 +402,9 @@ class bitbuf:
         value &= (1 << width) - 1 if width > 0 else 0
         self._data |= value << (self._offset + self._width)
         self._width += width
+        return self
 
-    def delete_low(self, width: int) -> None:
+    def delete_low(self, width: int) -> Self:
         """Discard ``width`` bits from the least significant side."""
         if width < 0:
             raise ValueError("width must be non-negative")
@@ -403,8 +415,9 @@ class bitbuf:
         self._width -= width
         self._increase_offset(width)
         self._trim()
+        return self
 
-    def delete_high(self, width: int) -> None:
+    def delete_high(self, width: int) -> Self:
         """Discard ``width`` bits from the most significant side."""
         if width < 0:
             raise ValueError("width must be non-negative")
@@ -414,6 +427,7 @@ class bitbuf:
             return
         self._width -= width
         self._trim()
+        return self
 
     def pop_low(self, width: int) -> int:
         """Remove and return ``width`` bits from the least significant side."""
