@@ -24,6 +24,13 @@ def test_init_accepts_bitbuf_value_and_ignores_width():
     assert int(buffer) == 0b101101
 
 
+def test_equal_simple():
+    assert bitbuf(7, 10) == bitbuf(7, 10)
+    assert bitbuf(7, 10) != bitbuf(7, 11)
+    assert bitbuf(7, 10) != bitbuf(5, 10)
+    assert bitbuf(12, 10).delete_low(2) == bitbuf(0, 6).append_low(3, 2)
+
+
 def test_repr_includes_length_and_hex_value():
     assert repr(bitbuf(0xABC, 12)) == "bitbuf(len=12, hex=0xabc)"
 

@@ -56,6 +56,14 @@ class bitbuf:
             raise ValueError("width must be non-negative")
         return cls((1 << width) - 1 if width else 0, width)
 
+    def __eq__(self, other):
+        # 1. Check if 'other' is the correct type to avoid errors
+        if type(other) is bitbuf:
+            return self.width == other.width and self.int() == other.int()
+        else:
+            # Returning NotImplemented allows Python to try the other object's __eq__
+            return NotImplemented
+
     def __len__(self) -> int:
         return self._width
 
