@@ -4,7 +4,7 @@ from typing import Self, TypeAlias, Union
 
 from ._utils import ensure_int
 
-input_types: TypeAlias = Union[int, bytes, bytearray, memoryview, "bitbuf"]
+InputTypes: TypeAlias = Union[int, bytes, bytearray, memoryview, "bitbuf"]
 
 
 class bitbuf:
@@ -17,7 +17,7 @@ class bitbuf:
     Byte conversion uses little-endian order for both input and output.
     """
 
-    def __init__(self, value: input_types = 0, width: int | None = None):
+    def __init__(self, value: InputTypes = 0, width: int | None = None):
         """
         Args:
             value: Initial buffer contents as an integer, little-endian bytes,
@@ -87,7 +87,7 @@ class bitbuf:
             return self.get_bit(key)
         raise TypeError("bit index must be an int or slice")
 
-    def __setitem__(self, key: int | slice, value: input_types) -> None:
+    def __setitem__(self, key: int | slice, value: InputTypes) -> None:
         if type(key) is slice:
             start, stop = self._slice_bounds(key)
             self.set_bits(start, value, stop - start)
@@ -111,7 +111,7 @@ class bitbuf:
         return (1 << self._width) - 1
 
     @staticmethod
-    def _sized_value(value: input_types, width: int | None) -> tuple[int, int]:
+    def _sized_value(value: InputTypes, width: int | None) -> tuple[int, int]:
         if type(value) is bitbuf:
             return value.int(), len(value)
         if type(value) in (bytes, bytearray, memoryview):
@@ -177,7 +177,7 @@ class bitbuf:
         high = self.get_bits(self._width - high_width, high_width)
         return f"0x{high:x}...{low:016x}"
 
-    def assign(self, value: input_types = 0, width: int | None = None) -> Self:
+    def assign(self, value: InputTypes = 0, width: int | None = None) -> Self:
         """
         Replace the whole buffer with ``value`` and ``width``.
 
@@ -269,7 +269,7 @@ class bitbuf:
         self.set_bits(self._normalize_position(pos), value, 1)
         return self
 
-    def set_bits(self, pos: int, value: input_types = 0, width: int | None = None) -> Self:
+    def set_bits(self, pos: int, value: InputTypes = 0, width: int | None = None) -> Self:
         """
         Replace ``width`` bits starting at ``pos`` with ``value``.
 
@@ -380,7 +380,7 @@ class bitbuf:
             self._trim()
         return self
 
-    def append_low(self, value: input_types = 0, width: int | None = None) -> Self:
+    def append_low(self, value: InputTypes = 0, width: int | None = None) -> Self:
         """
         Append ``width`` bits to the least significant side and grow the buffer.
 
@@ -398,7 +398,7 @@ class bitbuf:
         self._trim()
         return self
 
-    def append_high(self, value: input_types = 0, width: int | None = None) -> Self:
+    def append_high(self, value: InputTypes = 0, width: int | None = None) -> Self:
         """
         Append ``width`` bits to the most significant side and grow the buffer.
 
