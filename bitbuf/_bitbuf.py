@@ -467,7 +467,7 @@ class bitbuf:
         Returns:
             The current buffer value serialized to the minimum number of bytes.
         """
-        return self.int().to_bytes(self.size_bytes, "little")
+        return self.int().to_bytes(self.nbytes, "little")
 
     def hex(self) -> str:
         """Return ``hex(self.int())``."""
@@ -493,7 +493,7 @@ class bitbuf:
         return self._width
 
     @property
-    def size_bytes(self) -> int:
+    def nbytes(self) -> int:
         """
         Return the minimum number of bytes required to store the buffer.
 

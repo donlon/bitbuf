@@ -661,7 +661,7 @@ def test_offset_is_compensated_by_other_apis():
     assert len(buffer) == 60
     assert buffer[4:12] == 0xA5
     assert int(buffer) == expected
-    assert bytes(buffer) == expected.to_bytes(buffer.size_bytes, "little")
+    assert bytes(buffer) == expected.to_bytes(buffer.nbytes, "little")
 
 
 def test_delete_all_bits():
@@ -755,7 +755,7 @@ def test_hex_conversion():
 def test_bytes_method_and_builtin_conversion_use_minimum_little_endian_bytes():
     buffer = bitbuf(0xABC, 12)
 
-    assert buffer.size_bytes == 2
+    assert buffer.nbytes == 2
     assert buffer.bytes() == b"\xbc\x0a"
     assert bytes(buffer) == b"\xbc\x0a"
 
@@ -767,7 +767,7 @@ def test_bytearray_method_uses_minimum_little_endian_bytes():
 
 
 def test_size_bytes_rounds_up_to_full_bytes():
-    assert bitbuf(0, 0).size_bytes == 0
-    assert bitbuf(0, 1).size_bytes == 1
-    assert bitbuf(0, 8).size_bytes == 1
-    assert bitbuf(0, 9).size_bytes == 2
+    assert bitbuf(0, 0).nbytes == 0
+    assert bitbuf(0, 1).nbytes == 1
+    assert bitbuf(0, 8).nbytes == 1
+    assert bitbuf(0, 9).nbytes == 2
