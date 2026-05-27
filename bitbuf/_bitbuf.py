@@ -2,7 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Self, TypeAlias, Union
+import sys
+from typing import TypeAlias, Union
+
+if sys.version_info >= (3, 11):
+    from typing import Self
+else:
+    from typing import TypeVar
+
+    Self = TypeVar("Self", bound="bitbuf")
 
 from ._utils import ensure_int
 
