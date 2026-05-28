@@ -37,6 +37,7 @@ struct ExtractedBuffer {
         }
     }
 
+    // Only Move assignment operator is allowed
     ExtractedBuffer(const ExtractedBuffer &other) = delete;
 
     ExtractedBuffer &operator=(const ExtractedBuffer &other) = delete;
@@ -62,7 +63,7 @@ struct ExtractedBuffer {
             throw nb::value_error("width is not specified for int data");
         }
         int64_t width;
-        if (width_.is_none()) {
+        if (!width_.is_none()) {
             auto w = nb::cast<int>(width_);
             if (w < 0) throw nb::value_error("invalid argument 'width'");
             width = w;
@@ -89,12 +90,12 @@ struct ExtractedBuffer {
             return ExtractedBuffer{
                     static_cast<uint32_t>(width),
                     width,
-                    reinterpret_cast<const BitBuf::data_t *>(PyBytes_AsString(ptr)),
+                    buf,
                     true,
             };
         } else if (PyBytes_Check(ptr)) {
             return ExtractedBuffer{
-                    (uint32_t) PyBytes_GET_SIZE(ptr) * 8, // FIXME: check oversize
+                    (uint32_t) PyBytes_GET_SIZE(ptr) * 8,
                     width,
                     reinterpret_cast<const BitBuf::data_t *>(PyBytes_AsString(ptr)),
             };
@@ -244,8 +245,10 @@ PyBitBuf &PyBitBuf::clear() {
 
 nb::int_ PyBitBuf::get_bit(const nb::object &pos_) const {
     int pos = nb::cast<int>(pos_);
-    if (pos < 0 || pos > bitbuf.len())
+    if (pos < 0 || pos >= bitbuf.len())
         throw nb::index_error("bit range out of range");
+    if (width < 0)
+        throw nb::value_error("width must be non-negative");
     return nb::int_(bitbuf.get_bit(pos));
 }
 
@@ -261,9 +264,9 @@ nb::int_ PyBitBuf::get_bits(const nb::object &pos_, const nb::object &width_) co
         return nb::int_(0);
     }
     const auto buffer_size = (width + 63) / 64;
-    std::unique_ptr<BitBuf::data_t> buf(new BitBuf::data_t[buffer_size]);
+    std::unique_ptr<BitBuf::data_t[]> buf(new BitBuf::data_t[buffer_size]);
     bitbuf.get_bits(pos, width, buf.get());
-    return nb::int_(PyLong_FromNativeBytes(buf.get(), buffer_size, Py_ASNATIVEBYTES_LITTLE_ENDIAN));
+    return nb::int_(PyLong_FromNativeBytes(buf.get(), buffer_size * sizeof(BitBuf::data_t), Py_ASNATIVEBYTES_LITTLE_ENDIAN));
 }
 
 nb::bytes PyBitBuf::get_bits_as_bytes(const nb::object &pos_, const nb::object &width_) const {
@@ -278,7 +281,7 @@ nb::bytes PyBitBuf::get_bits_as_bytes(const nb::object &pos_, const nb::object &
         return {};
     }
     const auto buffer_size = (width + 63) / 64;
-    std::unique_ptr<data_t> buf(new data_t[buffer_size]);
+    std::unique_ptr<data_t[]> buf(new data_t[buffer_size]);
     bitbuf.get_bits(pos, width, buf.get());
     return nb::bytes(PyBytes_FromStringAndSize(reinterpret_cast<const char *>(buf.get()),
                                                (Py_ssize_t) (buffer_size * sizeof(data_t))));
@@ -319,7 +322,7 @@ PyBitBuf PyBitBuf::slice(const nb::object &pos_, const nb::object &width_) const
 PyBitBuf &PyBitBuf::set_bit(const nb::object &pos_, const nb::object &value_) {
     int pos = nb::cast<int>(pos_);
     int value = nb::cast<int>(value_);
-    if (pos < 0 || pos > bitbuf.len())
+    if (pos < 0 || pos >= bitbuf.len())
         throw nb::index_error("bit range out of range");
     bitbuf.set_bit(pos, value);
     return *this;
@@ -328,9 +331,9 @@ PyBitBuf &PyBitBuf::set_bit(const nb::object &pos_, const nb::object &value_) {
 PyBitBuf &PyBitBuf::set_bits(const nb::object &pos_, const nb::object &value_, const nb::object &width_) {
     // int | bytes | bytearray | memoryview | bitbuf
     int pos = nb::cast<int>(pos_); // TODO: signed type?
-    auto buf = ExtractedBuffer::extract(value_, width_);
+    auto buf = ExtractedBuffer::extract(value_, width_); // this function rejects negative width_
     if (pos < 0 || pos + buf.size > bitbuf.len()) {
-        // FIXME: check before ExtractedBuffer::extract
+        // TODO: check before ExtractedBuffer::extract
         throw nb::index_error("bit range out of range");
     }
     // set_bits_nocheck
@@ -438,7 +441,7 @@ nb::int_ PyBitBuf::pop_low(const nb::object &width_) {
         auto obj = PyLong_FromUInt64(buf);
         return nb::int_(obj);
     } else {
-        auto buf = new data_t[(width + 63) / 64];
+        std::unique_ptr<data_t[]> buf = new data_t[(width + 63) / 64];
         bitbuf.pop_low(buf, width);
         auto obj = PyLong_FromNativeBytes(buf, (width + 7) / 8, Py_ASNATIVEBYTES_LITTLE_ENDIAN);
         return nb::int_(obj);
@@ -460,7 +463,7 @@ nb::int_ PyBitBuf::pop_high(const nb::object &width_) {
         auto obj = PyLong_FromUInt64(buf);
         return nb::int_(obj);
     } else {
-        auto buf = new data_t[(width + 63) / 64];
+        std::unique_ptr<data_t[]> buf = new data_t[(width + 63) / 64];
         bitbuf.pop_high(buf, width);
         auto obj = PyLong_FromNativeBytes(buf, (width + 7) / 8, Py_ASNATIVEBYTES_LITTLE_ENDIAN);
         return nb::int_(obj);
@@ -470,14 +473,14 @@ nb::int_ PyBitBuf::pop_high(const nb::object &width_) {
 nb::bytearray PyBitBuf::as_bytearray() {
     uint8_t *ptr = bitbuf.normalize_buffer_8b();
     return nb::bytearray(
-            PyByteArray_FromStringAndSize(reinterpret_cast<const char *>(ptr), (bitbuf.len() * 7) / 8)
+            PyByteArray_FromStringAndSize(reinterpret_cast<const char *>(ptr), (bitbuf.len() + 7) / 8)
     );
 }
 
 nb::bytes PyBitBuf::bytes() {
     uint8_t *ptr = bitbuf.normalize_buffer_8b();
     return nb::bytes(
-            PyBytes_FromStringAndSize(reinterpret_cast<const char *>(ptr), (bitbuf.len() * 7) / 8)
+            PyBytes_FromStringAndSize(reinterpret_cast<const char *>(ptr), (bitbuf.len() + 7) / 8)
     );
 }
 

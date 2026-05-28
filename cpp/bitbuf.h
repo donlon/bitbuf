@@ -54,7 +54,8 @@ public:
     BitBuf(const void *buffer, uint32_t width);
     
     ~BitBuf();
-//    TODO: copy constructor/move
+
+    // TODO: copy constructor/move
 
     BitBuf &assign(const void *buffer, uint32_t width);
 
