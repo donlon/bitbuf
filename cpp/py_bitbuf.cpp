@@ -247,8 +247,6 @@ nb::int_ PyBitBuf::get_bit(const nb::object &pos_) const {
     int pos = nb::cast<int>(pos_);
     if (pos < 0 || pos >= bitbuf.len())
         throw nb::index_error("bit range out of range");
-    if (width < 0)
-        throw nb::value_error("width must be non-negative");
     return nb::int_(bitbuf.get_bit(pos));
 }
 
@@ -441,9 +439,9 @@ nb::int_ PyBitBuf::pop_low(const nb::object &width_) {
         auto obj = PyLong_FromUInt64(buf);
         return nb::int_(obj);
     } else {
-        std::unique_ptr<data_t[]> buf = new data_t[(width + 63) / 64];
-        bitbuf.pop_low(buf, width);
-        auto obj = PyLong_FromNativeBytes(buf, (width + 7) / 8, Py_ASNATIVEBYTES_LITTLE_ENDIAN);
+        std::unique_ptr<data_t[]> buf(new data_t[(width + 63) / 64]);
+        bitbuf.pop_low(buf.get(), width);
+        auto obj = PyLong_FromNativeBytes(buf.get(), (width + 7) / 8, Py_ASNATIVEBYTES_LITTLE_ENDIAN);
         return nb::int_(obj);
     }
 }
@@ -463,9 +461,9 @@ nb::int_ PyBitBuf::pop_high(const nb::object &width_) {
         auto obj = PyLong_FromUInt64(buf);
         return nb::int_(obj);
     } else {
-        std::unique_ptr<data_t[]> buf = new data_t[(width + 63) / 64];
-        bitbuf.pop_high(buf, width);
-        auto obj = PyLong_FromNativeBytes(buf, (width + 7) / 8, Py_ASNATIVEBYTES_LITTLE_ENDIAN);
+        std::unique_ptr<data_t[]> buf(new data_t[(width + 63) / 64]);
+        bitbuf.pop_high(buf.get(), width);
+        auto obj = PyLong_FromNativeBytes(buf.get(),(width + 7) / 8, Py_ASNATIVEBYTES_LITTLE_ENDIAN);
         return nb::int_(obj);
     }
 }

@@ -31,7 +31,7 @@ BitBuf &BitBuf::assign(const void *buffer, uint32_t width) {
 /// @return The bitbuf object
 BitBuf &BitBuf::assign_zeros(uint32_t width) {
     ensure_empty_buffer(width);
-    if (width == 0) return;
+    if (width == 0) return *this;
     const auto buf = get_buffer();
     const auto buf_first = buf + ((offset) / 64);
     const auto buf_last = buf + ((offset + length - 1) / 64);
@@ -46,7 +46,7 @@ BitBuf &BitBuf::assign_zeros(uint32_t width) {
 /// @return The bitbuf object
 BitBuf &BitBuf::assign_ones(uint32_t width) {
     ensure_empty_buffer(width);
-    if (width == 0) return;
+    if (width == 0) return *this;
     const auto buf = get_buffer();
     const auto buf_first = buf + ((offset) / 64);
     const auto buf_last = buf + ((offset + length - 1) / 64);
@@ -423,7 +423,7 @@ void BitBuf::ensure_empty_buffer(uint32_t new_length) {
         this->offset = minimum_offset;
     } else {
         this->offset = heapOffsetWords * 64;
-        auto new_capacity = heapOffsetWords + (new_length + 63) / 64 + 1;
+        auto new_capacity = heapOffsetWords + (new_length + 63) / 64 + 4; // at least > inlineBufferWords
         if (using_heap_buffer()) delete[] heap_buffer;
         heap_buffer = new data_t[new_capacity];
         capacity = new_capacity;
@@ -456,7 +456,7 @@ void BitBuf::ensure_buffer(int64_t offset_delta, int64_t length_delta) {
         // Case III. Allocate new buffer space and move data to new position
         new_offset = heapOffsetWords * 64 + new_offset % 64;
         memmove_delta = (new_offset - offset) / 64;
-        auto new_capacity = (new_offset + length + 63) / 64 + 1;
+        auto new_capacity = (new_offset + new_length + 63) / 64 + 1;
         dst_buf = new data_t[new_capacity];
         this->capacity = new_capacity;
     }
