@@ -2,7 +2,6 @@
 #include "nanobind/ndarray.h"
 
 #include <memory>
-#include <nanobind/stl/string.h>
 
 static std::string to_hex_string(const uint8_t *ptr, size_t size) {
     static const char *hex_table = "0123456789abcdef";
@@ -10,10 +9,17 @@ static std::string to_hex_string(const uint8_t *ptr, size_t size) {
     std::string str{"0x"};
     str.reserve(2 * size + 4);
     auto i = size - 1;
+    bool find_nonzero = false;
     do {
         uint8_t byte = ptr[i];
-        str += hex_table[byte >> 4];
-        str += hex_table[byte & 15];
+        if (find_nonzero || byte >> 4) {
+            str += hex_table[byte >> 4];
+            find_nonzero = true;
+        }
+        if (find_nonzero || byte & 15) {
+            str += hex_table[byte & 15];
+            find_nonzero = true;
+        }
     } while (i--);
     return str;
 }
@@ -82,8 +88,7 @@ struct ExtractedBuffer {
             };
         }
         if (PyLong_Check(ptr)) {
-            uint32_t size;
-            PyLong_AsNativeBytes(ptr, &size, 0, Py_ASNATIVEBYTES_LITTLE_ENDIAN);
+            Py_ssize_t size = PyLong_AsNativeBytes(ptr, nullptr, 0, Py_ASNATIVEBYTES_LITTLE_ENDIAN);
             if (size < width) size = width;
             auto buf = new uint64_t[(size + 7) / 8];
             PyLong_AsNativeBytes(ptr, buf, size, Py_ASNATIVEBYTES_LITTLE_ENDIAN);
@@ -125,6 +130,8 @@ PyBitBuf::PyBitBuf(const nb::object &value, const nb::object &width) {
     assign(value, width);
 }
 
+PyBitBuf::~PyBitBuf() = default;
+
 PyBitBuf PyBitBuf::from_int(const nb::object &data_, const nb::object &width_) {
     return from_bytes(data_, width_);
 }
@@ -147,6 +154,8 @@ PyBitBuf PyBitBuf::zeros(const nb::object &width_) {
 
 PyBitBuf PyBitBuf::ones(const nb::object &width_) {
     auto width = nb::cast<int>(width_);
+    if (width < 0)
+        throw nb::value_error("width must be non-negative");
     PyBitBuf buf{};
     buf.bitbuf.assign_ones(width);
     return buf;
@@ -197,7 +206,12 @@ std::string PyBitBuf::repr() {
 
 nb::object PyBitBuf::getitem(const nb::object &key) const {
     if (nb::isinstance<nb::slice>(key)) {
-        throw nb::index_error("slice is not supported");
+        auto slice = nb::cast<nb::slice>(key);
+        auto [start, stop, step, slice_length] = slice.compute(bitbuf.len());
+        if (step != 1) {
+            throw nb::index_error("step other that 1 is not supported");
+        }
+        return get_bits(nb::int_(start), nb::int_(slice_length)); // TODO: avoid wrapping python object
     }
     if (nb::isinstance<nb::int_>(key)) {
         return get_bit(key);
@@ -207,7 +221,13 @@ nb::object PyBitBuf::getitem(const nb::object &key) const {
 
 void PyBitBuf::setitem(const nb::object &key, const nb::object &value) {
     if (nb::isinstance<nb::slice>(key)) {
-        throw nb::index_error("slice is not supported");
+        auto slice = nb::cast<nb::slice>(key);
+        auto [start, stop, step, slice_length] = slice.compute(bitbuf.len());
+        if (step != 1) {
+            throw nb::index_error("step other that 1 is not supported");
+        }
+        set_bits(nb::int_(start), value, nb::int_(slice_length)); // TODO: avoid wrapping python object
+        return;
     }
     if (nb::isinstance<nb::int_>(key)) {
         set_bit(key, value);
@@ -245,6 +265,7 @@ PyBitBuf &PyBitBuf::clear() {
 
 nb::int_ PyBitBuf::get_bit(const nb::object &pos_) const {
     int pos = nb::cast<int>(pos_);
+    if (pos < 0) pos += (int) bitbuf.len();
     if (pos < 0 || pos >= bitbuf.len())
         throw nb::index_error("bit range out of range");
     return nb::int_(bitbuf.get_bit(pos));
@@ -264,7 +285,8 @@ nb::int_ PyBitBuf::get_bits(const nb::object &pos_, const nb::object &width_) co
     const auto buffer_size = (width + 63) / 64;
     std::unique_ptr<BitBuf::data_t[]> buf(new BitBuf::data_t[buffer_size]);
     bitbuf.get_bits(pos, width, buf.get());
-    return nb::int_(PyLong_FromNativeBytes(buf.get(), buffer_size * sizeof(BitBuf::data_t), Py_ASNATIVEBYTES_LITTLE_ENDIAN));
+    return nb::int_(PyLong_FromNativeBytes(buf.get(), buffer_size * sizeof(BitBuf::data_t),
+                                           Py_ASNATIVEBYTES_LITTLE_ENDIAN | Py_ASNATIVEBYTES_UNSIGNED_BUFFER));
 }
 
 nb::bytes PyBitBuf::get_bits_as_bytes(const nb::object &pos_, const nb::object &width_) const {
@@ -320,6 +342,7 @@ PyBitBuf PyBitBuf::slice(const nb::object &pos_, const nb::object &width_) const
 PyBitBuf &PyBitBuf::set_bit(const nb::object &pos_, const nb::object &value_) {
     int pos = nb::cast<int>(pos_);
     int value = nb::cast<int>(value_);
+    if (pos < 0) pos += (int) bitbuf.len();
     if (pos < 0 || pos >= bitbuf.len())
         throw nb::index_error("bit range out of range");
     bitbuf.set_bit(pos, value);
@@ -364,6 +387,7 @@ PyBitBuf &PyBitBuf::set_zeros(const nb::object &pos_, const nb::object &width_) 
 PyBitBuf &PyBitBuf::toggle(const nb::object &pos_, const nb::object &width_) {
     int pos = nb::cast<int>(pos_); // TODO: signed type?
     int width = nb::cast<int>(width_);
+    // TODO: pos == None
     int end = pos + (int) width;
     if (pos < 0 || end > bitbuf.len()) {
         throw nb::index_error("bit range out of range");
@@ -441,7 +465,9 @@ nb::int_ PyBitBuf::pop_low(const nb::object &width_) {
     } else {
         std::unique_ptr<data_t[]> buf(new data_t[(width + 63) / 64]);
         bitbuf.pop_low(buf.get(), width);
-        auto obj = PyLong_FromNativeBytes(buf.get(), (width + 7) / 8, Py_ASNATIVEBYTES_LITTLE_ENDIAN);
+        // TODO: negative input?
+        auto obj = PyLong_FromNativeBytes(buf.get(), (width + 7) / 8,
+                                          Py_ASNATIVEBYTES_LITTLE_ENDIAN | Py_ASNATIVEBYTES_UNSIGNED_BUFFER);
         return nb::int_(obj);
     }
 }
@@ -463,7 +489,8 @@ nb::int_ PyBitBuf::pop_high(const nb::object &width_) {
     } else {
         std::unique_ptr<data_t[]> buf(new data_t[(width + 63) / 64]);
         bitbuf.pop_high(buf.get(), width);
-        auto obj = PyLong_FromNativeBytes(buf.get(),(width + 7) / 8, Py_ASNATIVEBYTES_LITTLE_ENDIAN);
+        auto obj = PyLong_FromNativeBytes(buf.get(), (width + 7) / 8,
+                                          Py_ASNATIVEBYTES_LITTLE_ENDIAN | Py_ASNATIVEBYTES_UNSIGNED_BUFFER);
         return nb::int_(obj);
     }
 }
@@ -492,7 +519,7 @@ nb::int_ PyBitBuf::int_value() {
     uint8_t *ptr = bitbuf.normalize_buffer_8b();
     return nb::int_(
             PyLong_FromNativeBytes(reinterpret_cast<const char *>(ptr), nbytes(),
-                                   Py_ASNATIVEBYTES_LITTLE_ENDIAN)
+                                   Py_ASNATIVEBYTES_LITTLE_ENDIAN | Py_ASNATIVEBYTES_UNSIGNED_BUFFER)
     );
 }
 

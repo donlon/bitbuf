@@ -56,5 +56,5 @@ NB_MODULE(_bitbuf, m) {
         .def("int", &PyBitBuf::int_value)
         .def_prop_ro("width", &PyBitBuf::width)
         .def_prop_ro("nbytes", &PyBitBuf::nbytes)
-        .def_prop_ro("_offset", &PyBitBuf::get_offset);
+        .def_prop_ro("offset", &PyBitBuf::get_offset);
 }

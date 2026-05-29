@@ -2,17 +2,91 @@
 
 #include <algorithm>
 #include <array>
+#include <cstring>
 
 /// @brief Constructor of the BitBuf object.
 BitBuf::BitBuf() : length(0), offset(initialOffset) {}
 
 /// @brief Constructor of the BitBuf object. Initialize data with data in `buffer` and bit count `width`. Data placed in
 ///        buffer should be held in LSB first format.
-BitBuf::BitBuf(const void *buffer, uint32_t width) { assign(buffer, width); }
+BitBuf::BitBuf(const void *buffer, uint32_t width) {
+    assign(buffer, width);
+}
 
 /// @brief Destructor of the BitBuf object.
 BitBuf::~BitBuf() {
     if (using_heap_buffer()) delete[] heap_buffer;
+}
+
+BitBuf::BitBuf(const BitBuf &other)
+        : capacity(other.capacity), length(other.length), offset(other.offset) {
+    if (other.using_heap_buffer()) {
+        heap_buffer = new data_t[other.capacity];
+        memcpy(heap_buffer, other.heap_buffer, other.capacity * sizeof(data_t));
+    } else {
+        memcpy(inline_buffer, other.inline_buffer, sizeof(inline_buffer));
+    }
+}
+
+BitBuf &BitBuf::operator=(const BitBuf &other) {
+    if (this == &other) {
+        return *this;
+    }
+
+    if (using_heap_buffer()) {
+        delete[] heap_buffer;
+    }
+
+    capacity = other.capacity;
+    length = other.length;
+    offset = other.offset;
+
+    if (other.using_heap_buffer()) {
+        heap_buffer = new data_t[other.capacity];
+        memcpy(heap_buffer, other.heap_buffer, other.capacity * sizeof(data_t));
+    } else {
+        memcpy(inline_buffer, other.inline_buffer, sizeof(inline_buffer));
+    }
+    return *this;
+}
+
+BitBuf::BitBuf(BitBuf &&other) noexcept
+        : capacity(other.capacity), length(other.length), offset(other.offset) {
+    if (other.using_heap_buffer()) {
+        heap_buffer = other.heap_buffer;
+        other.heap_buffer = nullptr;
+    } else {
+        memcpy(inline_buffer, other.inline_buffer, sizeof(inline_buffer));
+    }
+    other.capacity = inlineBufferWords;
+    other.length = 0;
+    other.offset = initialOffset;
+}
+
+BitBuf &BitBuf::operator=(BitBuf &&other) noexcept {
+    if (this == &other) {
+        return *this;
+    }
+
+    if (using_heap_buffer()) {
+        delete[] heap_buffer;
+    }
+
+    capacity = other.capacity;
+    length = other.length;
+    offset = other.offset;
+
+    if (other.using_heap_buffer()) {
+        heap_buffer = other.heap_buffer;
+        other.heap_buffer = nullptr;
+    } else {
+        memcpy(inline_buffer, other.inline_buffer, sizeof(inline_buffer));
+    }
+
+    other.capacity = inlineBufferWords;
+    other.length = 0;
+    other.offset = initialOffset;
+    return *this;
 }
 
 /// @brief Assign Bitbuf object with data and size.
@@ -20,9 +94,8 @@ BitBuf::~BitBuf() {
 /// @param width Size of bits to assign
 /// @return The bitbuf object
 BitBuf &BitBuf::assign(const void *buffer, uint32_t width) {
-    ensure_empty_buffer(width);
-    if (offset % 8 != 0) throw std::exception();
-    memcpy((uint8_t *) get_buffer() + offset / 8, buffer, (width + 7) / 8);
+    data_t *ptr = ensure_empty_buffer(width);
+    memcpy(ptr, buffer, (width + 7) / 8);
     return *this;
 }
 
@@ -30,12 +103,10 @@ BitBuf &BitBuf::assign(const void *buffer, uint32_t width) {
 /// @param width Bit size of zeros to assign
 /// @return The bitbuf object
 BitBuf &BitBuf::assign_zeros(uint32_t width) {
-    ensure_empty_buffer(width);
+    data_t *buf = ensure_empty_buffer(width);
     if (width == 0) return *this;
-    const auto buf = get_buffer();
-    const auto buf_first = buf + ((offset) / 64);
-    const auto buf_last = buf + ((offset + length - 1) / 64);
-    for (auto *ptr = buf_first; ptr <= buf_last; ptr++) { *ptr = 0; }
+    const auto buf_last = buf + (width - 1) / 64;
+    for (auto *ptr = buf; ptr <= buf_last; ptr++) { *ptr = 0; }
     // memset(buf_start, 0, (buf_end - buf_start) * sizeof(data_t));
     return *this;
 }
@@ -45,12 +116,10 @@ BitBuf &BitBuf::assign_zeros(uint32_t width) {
 /// @param width Bit size of ones to assign
 /// @return The bitbuf object
 BitBuf &BitBuf::assign_ones(uint32_t width) {
-    ensure_empty_buffer(width);
+    data_t *buf = ensure_empty_buffer(width);
     if (width == 0) return *this;
-    const auto buf = get_buffer();
-    const auto buf_first = buf + ((offset) / 64);
-    const auto buf_last = buf + ((offset + length - 1) / 64);
-    for (auto *ptr = buf_first; ptr <= buf_last; ptr++) { *ptr = -1ull; }
+    const auto buf_last = buf + (width - 1) / 64;
+    for (auto *ptr = buf; ptr <= buf_last; ptr++) { *ptr = -1ull; }
     return *this;
 }
 
@@ -70,7 +139,12 @@ bool BitBuf::compare(BitBuf &other) {
 uint32_t BitBuf::len() const { return length; }
 
 BitBuf &BitBuf::resize(uint32_t width) {
-    ensure_buffer(0, (int64_t) width - (int64_t) length);
+    auto old_length = length;
+    int64_t delta_length = (int64_t) width - (int64_t) length;
+    ensure_buffer(0, delta_length);
+    if (delta_length > 0) {
+        set_zeros(old_length, delta_length);
+    }
     return *this;
 }
 
@@ -111,19 +185,33 @@ void BitBuf::get_bits_nocheck(uint32_t pos, uint32_t width, data_t *dst_buf) con
 
     const auto offset_start = ((offset + pos) % 64);
     const auto offset_start_c = (64 - offset_start) % 64;
-    auto value = *buf_first >> offset_start;
     if (buf_first == buf_last) {
         // C++ says 1ull << width is UB for width == 64 and make them happy
+        auto value = *buf_first >> offset_start;
         if (width == 64) {
             *dst_buf = value;
         } else {
             *dst_buf = value & ((1ull << width) - 1);
         }
+    } else if (((offset + pos) % 8) == 0) {
+        uint32_t nbytes = (width + 7) / 8;
+        memcpy(dst_buf, (uint8_t *) buf + (offset + pos) / 8, nbytes);
+        uint32_t last_word = (width - 1) / 64;
+        uint32_t end_offset = width % 64;
+        if (end_offset != 0) {
+            dst_buf[last_word] &= (1ull << end_offset) - 1; // clear tail bits
+        }
     } else {
-        for (const data_t *ptr = buf_first + 1; ptr <= buf_last; ptr++) {
-            *dst_buf++ = value + (*ptr << offset_start_c);
-            value = *ptr >> offset_start;
-            // TODO: if last, value & ((1ull << (width % 64)) - 1)
+        const data_t *ptr = buf_first;
+        auto value = *ptr++ >> offset_start;
+        uint32_t read_size = 0;
+        for (; read_size < (width & ~63); read_size += 64) {
+            data_t src_value = *ptr++;
+            *dst_buf++ = value + (src_value << offset_start_c);
+            value = src_value >> offset_start;
+        }
+        if (width % 64) {
+            *dst_buf = (value + (*buf_last << offset_start_c)) & ((1ull << (width % 64)) - 1);
         }
     }
 }
@@ -136,19 +224,17 @@ BitBuf BitBuf::slice(uint32_t pos, uint32_t width) const {
     if (width == 0) return {};
     if (pos + width > length) return {}; // throw nb::index_error("bit range out of range");
     const auto buf_offset = offset + pos;
-    const auto buf_length = pos + width;
+    const auto pos_start = buf_offset / 64;
+    const auto pos_end = (offset + pos + width + 63) / 64;
+    const auto data_size = pos_end - pos_start;
 
     BitBuf buf_slice{};
-    buf_slice.ensure_empty_buffer(((buf_length + 63) / 64 - (offset + buf_offset) / 64) * 64);
+    data_t *dst_buf = buf_slice.ensure_empty_buffer(data_size * 64);
     buf_slice.offset += buf_offset % 64;
 
-    const auto pos_start = (offset + pos) / 64;
-    const auto pos_last = (offset + pos + width - 1) / 64;
-    const auto data_size = pos_last - pos_start + 1;
-
     const auto src_start = get_buffer() + pos_start;
-    const auto dst_start = buf_slice.get_buffer() + buf_slice.offset / 64;
-    memcpy(dst_start, src_start, data_size * sizeof(data_t));
+    memcpy(dst_buf, src_start, data_size * sizeof(data_t));
+    buf_slice.resize(width);
     return buf_slice;
 }
 
@@ -190,9 +276,19 @@ void BitBuf::set_bits_nocheck(uint32_t pos, const data_t *src_buffer, uint32_t w
     const auto buf_last = buf + (offset + pos + width) / 64;
     const auto buf_last_offset = (offset + pos + width) % 64;
 
-    if (buf_start == buf_last) {
-        const auto value = *buf_last & (-1ull - (1ull << buf_last_offset) - (1ull << buf_start_offset));
-        *buf_last = value | (*src_buffer << buf_start_offset);
+    if (buf_start == buf_last) { // TODO: variable naming
+        const auto value = *buf_last & ~((1ull << buf_last_offset) - (1ull << buf_start_offset));
+        *buf_last = value | (*src_buffer << buf_start_offset) & ((1ull << buf_last_offset) - 1);
+    } else if (((offset + pos) % 8) == 0) {
+        // Always cross words
+        memcpy((uint8_t *) buf + (offset + pos) / 8, src_buffer, width / 8);
+        uint32_t last_byte = (offset + pos + width - 1) / 8;
+        uint32_t end_offset = (offset + pos + width) % 8;
+        if (end_offset != 0) {
+            uint8_t mask = (1 << end_offset) - 1;
+            ((uint8_t *) buf)[last_byte] =
+                    ((uint8_t *) buf)[last_byte] & ~mask | ((uint8_t *) src_buffer)[width / 8] & mask;
+        }
     } else {
         auto low_val = (*buf_start & ((1ull << buf_start_offset) - 1));
         for (auto *ptr = buf_start; ptr <= buf_last - 1; ptr++) {
@@ -200,6 +296,7 @@ void BitBuf::set_bits_nocheck(uint32_t pos, const data_t *src_buffer, uint32_t w
             *ptr = low_val + (src_value << buf_start_offset);
             low_val = src_value >> buf_start_offset_c;
         }
+        // TODO: buf_last_offset == 0
         auto last_mask = (1ull << buf_last_offset) - 1;
         *buf_last = *buf_last & ~last_mask | low_val & last_mask;
     }
@@ -261,7 +358,8 @@ BitBuf &BitBuf::lshift(uint32_t bits) {
         // Clear to zeros
         assign_zeros(length); // but cap fits
     } else {
-        ensure_buffer(bits, 0);
+        ensure_buffer(-(int64_t) bits, 0);
+        set_zeros(0, bits); // TODO: test
     }
     return *this;
 }
@@ -276,7 +374,8 @@ BitBuf &BitBuf::rshift(uint32_t bits) {
         // Clear to zeros
         assign_zeros(length); // but cap fits
     } else {
-        ensure_buffer(-bits, 0);
+        ensure_buffer(bits, 0);
+        set_zeros(length - bits, bits); // TODO: test
     }
     return *this;
 }
@@ -288,7 +387,7 @@ BitBuf &BitBuf::rshift(uint32_t bits) {
 /// @return The bitbuf object
 BitBuf &BitBuf::append_low(const data_t *value, uint32_t width) {
     if (width == 0) { return *this; }
-    ensure_buffer(-width, width);
+    ensure_buffer(-(int64_t) width, width);
     set_bits_nocheck(0, value, width);
     return *this;
 }
@@ -376,18 +475,23 @@ uint8_t *BitBuf::normalize_buffer_8b() {
         const auto buf_start = buf + (offset / 64);
         const auto buf_last = buf + ((offset + length - 1) / 64);
         const auto shift_offset = offset % 8;
-        const auto shift_offset_c = (8 - shift_offset) % 8;
+        const auto shift_offset_c = (64 - shift_offset) % 64;
         uint32_t new_offset = offset - shift_offset;
 
         if (buf_start == buf_last) {
-            *buf_start >>= shift_offset;
+            *buf_start = (*buf_start >> shift_offset) & ((1ull << ((new_offset + length) % 64)) - 1);
         } else {
             auto value = *buf_start >> shift_offset;
             for (data_t *ptr = buf_start + 1; ptr <= buf_last; ptr++) {
                 *(ptr - 1) = value + (*ptr << shift_offset_c);
                 value = *ptr >> shift_offset;
             }
-            *buf_last = value & ((1ull << ((new_offset + length) % 64)) - 1);
+            const auto buf_last_offset = (offset + length) % 64;
+            if (shift_offset > buf_last_offset && buf_last_offset > 0) {
+                *(buf_last - 1) &= (1ull << ((new_offset + length) % 64)) - 1;
+            } else {
+                *buf_last = value & ((1ull << ((new_offset + length) % 64)) - 1);
+            }
         }
         offset = new_offset;
     } else {
@@ -417,18 +521,20 @@ BitBuf::data_t *BitBuf::get_buffer() {
 
 /// @brief Ensure buffer size is sufficient for data with size `length`, with word aligned offset.
 /// @param new_length New size of data.
-void BitBuf::ensure_empty_buffer(uint32_t new_length) {
+/// @return Pointer to data_t aligned offset position at data buffer.
+BitBuf::data_t *BitBuf::ensure_empty_buffer(uint32_t new_length) {
     const auto minimum_offset = 64;
     if (minimum_offset + new_length <= capacity * 64) {
         this->offset = minimum_offset;
     } else {
-        this->offset = heapOffsetWords * 64;
-        auto new_capacity = heapOffsetWords + (new_length + 63) / 64 + 4; // at least > inlineBufferWords
+        this->offset = initialHeapOffsetWords * 64;
+        auto new_capacity = initialHeapOffsetWords + (new_length + 63) / 64 + 4; // at least > inlineBufferWords
         if (using_heap_buffer()) delete[] heap_buffer;
         heap_buffer = new data_t[new_capacity];
         capacity = new_capacity;
     }
     this->length = new_length;
+    return get_buffer() + this->offset / 64;
 }
 
 /// @brief Ensure buffer size is sufficient for data with growing size `length_delta` and offset `offset_delta`.
@@ -439,57 +545,40 @@ void BitBuf::ensure_buffer(int64_t offset_delta, int64_t length_delta) {
     int64_t new_offset = offset + offset_delta;
     const uint32_t new_length = length + length_delta; // guarentees length + length_delta >= 0
 
-    data_t *const src_buf = get_buffer();
-    data_t *dst_buf = nullptr;
-    int64_t memmove_delta = 0; // words distances of moving data up / down
-    if (new_offset > 0 && new_length <= capacity * 64) {
+    if (new_offset >= 0 && new_offset + new_length <= capacity * 64) {
         // Case I. Buffer space is sufficient for inplace expansion / shrink.
         // Only clearing expanded space to zeros is required.
-        memmove_delta = 0;
-        dst_buf = src_buf;
-    } else if ((new_offset % 64) + new_length <= capacity * 64) {
+        this->offset = new_offset;
+        this->length = new_length;
+        return;
+    }
+    data_t *const src_buf = get_buffer();
+    data_t *dst_buf = src_buf;
+    int64_t memmove_delta = 0;
+    uint32_t new_capacity = capacity;
+    if ((new_offset & 63) + new_length <= capacity * 64) {
         // Case II. Buffer size is sufficient but requires moving words.
-        memmove_delta = (new_offset - (new_offset % 64)) / 64;
-        new_offset = new_offset % 64; // TODO: reserve one more word?
-        dst_buf = src_buf;
+        memmove_delta = ((new_offset & 63) - new_offset) / 64;;
+        new_offset = new_offset & 63; // TODO: reserve one more word?
     } else {
         // Case III. Allocate new buffer space and move data to new position
-        new_offset = heapOffsetWords * 64 + new_offset % 64;
-        memmove_delta = (new_offset - offset) / 64;
-        auto new_capacity = (new_offset + new_length + 63) / 64 + 1;
+        new_offset = initialHeapOffsetWords * 64 + (new_offset & 63);
+        memmove_delta = (new_offset - offset_delta) / 64 - offset / 64;
+        new_capacity = (new_offset + new_length + 63) / 64 + 4;
         dst_buf = new data_t[new_capacity];
-        this->capacity = new_capacity;
     }
     // II/III Data move: move previous data block to new position
-    if (memmove_delta || src_buf != dst_buf) {
-        const auto src_start = src_buf + (offset / 64);
-        const auto dst_start = dst_buf + (new_offset / 64);
-        size_t data_size = ((offset + length - 1) / 64) - (offset / 64) + 1;
+    const auto src_start = src_buf + (offset / 64);
+    const auto dst_start = dst_buf + (offset / 64) + memmove_delta;
+    size_t data_size = ((offset + length + 63) / 64) - (offset / 64);
 
-        memmove(dst_start, src_start, data_size * sizeof(data_t));
+    memmove(dst_start, src_start, data_size * sizeof(data_t));
 
-        if (src_buf != dst_buf) {
-            if (using_heap_buffer()) delete[] this->heap_buffer;
-            this->heap_buffer = dst_buf;
-        }
+    if (src_buf != dst_buf) {
+        if (using_heap_buffer()) delete[] this->heap_buffer;
+        this->heap_buffer = dst_buf;
     }
-    // I/II/III Finalize: clearing expanded space to zeros
-    //    offset expanded: clear lower words
-    //    length expanded: clear higher words
-    if (offset_delta < 0) {
-        const auto clr_start = dst_buf + new_offset / 64;
-        const auto clr_last = dst_buf + ((offset - 1) / 64);
-        for (auto *ptr = clr_start; ptr <= clr_last - 1; ptr++) *ptr = 0;
-        const auto offset_last = offset % 64; // TODO
-        *clr_last &= ~((1ull << offset_last) - 1);
-    }
-    if (length_delta > 0) {
-        const auto clr_start = dst_buf + (offset + length) / 64;
-        const auto clr_last = dst_buf + ((offset + new_length - 1) / 64);
-        const auto offset_start = (offset + length) % 64;
-        *clr_start &= (1ull << offset_start) - 1;
-        for (auto *ptr = clr_start; ptr <= clr_last - 1; ptr++) *ptr = 0;
-    }
+    this->capacity = new_capacity;
     this->offset = new_offset;
     this->length = new_length;
 }

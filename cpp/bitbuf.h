@@ -10,20 +10,23 @@ class BitBuf {
 public:
     using data_t = uint64_t;
 
-private:
-    static constexpr const int inlineBufferWords = 2;
+#ifndef BITBUF_TESTS
+    private:
+#endif
+    static constexpr const int inlineBufferWords = 6;
     static constexpr const uint32_t initialOffsetWords = 1;
     static constexpr const uint32_t initialOffset = initialOffsetWords * 64;
-    static constexpr const uint32_t heapOffsetWords = 2;
-    static constexpr const uint32_t heapOffset = heapOffsetWords * 64;
+    static constexpr const uint32_t initialHeapOffsetWords = 2;
+    static constexpr const uint32_t initialHeapOffset = initialHeapOffsetWords * 64;
+
+    uint32_t capacity = inlineBufferWords; ///< Buffer capacity in words
+    uint32_t length; ///< Bit length of the object
+    uint32_t offset; ///< Bit offset of the object
 
     union {
         data_t inline_buffer[inlineBufferWords];
         data_t *heap_buffer = nullptr;
     };
-    uint32_t capacity = inlineBufferWords; ///< Buffer capacity in words
-    uint32_t length; ///< Bit length of the object
-    uint32_t offset; ///< Bit offset of the object
 
     static uint32_t get_aligned_buffer_size(uint32_t width) {
         return (width + (sizeof(data_t) - 1)) / sizeof(data_t);
@@ -43,19 +46,44 @@ private:
 
     void set_bits_nocheck(uint32_t pos, const data_t *src_buffer, uint32_t width);
 
-    void ensure_empty_buffer(uint32_t length);
+    BitBuf::data_t*ensure_empty_buffer(uint32_t length);
 
 //    uint8_t *ensure_empty_buffer_aligned_8b(uint32_t length);
     void ensure_buffer(int64_t offset_delta, int64_t length_delta); // no subword shifts and fill new space with zeros
 
 public:
     BitBuf();
-    
+
     BitBuf(const void *buffer, uint32_t width);
-    
+
     ~BitBuf();
 
-    // TODO: copy constructor/move
+    BitBuf(const BitBuf &other);
+
+    BitBuf &operator=(const BitBuf &other);
+
+    BitBuf(BitBuf &&other) noexcept;
+
+    BitBuf &operator=(BitBuf &&other) noexcept;
+
+    template<class T>
+    static BitBuf from(T value, int size = -1) {
+        BitBuf buf;
+        buf.assign(&value, size < 0 ? sizeof(T) * 8 : size);
+        return buf;
+    }
+
+    static BitBuf ones(uint32_t size) {
+        BitBuf buf;
+        buf.assign_ones(size);
+        return buf;
+    }
+
+    static BitBuf zeros(uint32_t size) {
+        BitBuf buf;
+        buf.assign_zeros(size);
+        return buf;
+    }
 
     BitBuf &assign(const void *buffer, uint32_t width);
 
@@ -66,6 +94,8 @@ public:
     bool compare(BitBuf &other);
 
     uint32_t len() const;
+
+    void reserve(uint32_t size) const;
 
     BitBuf &resize(uint32_t width);
 
@@ -92,6 +122,7 @@ public:
 
     BitBuf &rshift(uint32_t bits_);
 
+    // TODO: append
     BitBuf &append_low(const data_t *value, uint32_t width);
 
     BitBuf &append_high(const data_t *value, uint32_t width);
@@ -116,3 +147,4 @@ public:
     // uint8_t *normalize_buffer_word();
 };
 
+static_assert(sizeof(BitBuf) <= 64, "Size of BitBuf should less than size of cache line");

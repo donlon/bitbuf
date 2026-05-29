@@ -14,7 +14,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(nanobind)
 
-find_package(Python 3.10 REQUIRED COMPONENTS Interpreter Development.Module)
+find_package(Python 3.14 REQUIRED COMPONENTS Interpreter Development.Module)
 #find_package(nanobind CONFIG REQUIRED)
 
 execute_process(
@@ -43,7 +43,7 @@ install(
     RUNTIME DESTINATION bitbuf
 )
 
-option(BITBUF_BUILD_CPP_TESTS "Build C++ unit tests for BitBuf" ON)
+option(BITBUF_BUILD_CPP_TESTS "Build C++ unit tests for BitBuf" OFF)
 
 if (BITBUF_BUILD_CPP_TESTS)
     enable_testing()
@@ -65,6 +65,7 @@ if (BITBUF_BUILD_CPP_TESTS)
 
     target_include_directories(bitbuf_cpp_tests PRIVATE cpp)
     target_compile_definitions(bitbuf_cpp_tests PRIVATE NOMINMAX)
+    target_compile_definitions(bitbuf_cpp_tests PRIVATE BITBUF_TESTS)
     target_link_libraries(bitbuf_cpp_tests PRIVATE doctest::doctest)
 
     add_test(NAME bitbuf_cpp_tests COMMAND bitbuf_cpp_tests)

@@ -17,6 +17,8 @@ public:
 
     PyBitBuf(const nb::object &value, const nb::object &width);
 
+    ~PyBitBuf();
+
     static PyBitBuf from_int(const nb::object &data, const nb::object &width);
 
     static PyBitBuf from_bytes(const nb::object &data, const nb::object &width);
@@ -102,6 +104,9 @@ public:
     uint32_t get_offset() const;
 
 public:
+    PyBitBuf &set_bits_obj(int64_t pos, int64_t value, const nb::object &width);
+
     BitBuf bitbuf{};
+    uint32_t mark;
 
 };
