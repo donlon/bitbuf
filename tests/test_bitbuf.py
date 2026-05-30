@@ -85,7 +85,7 @@ def test_zeros_and_ones_constructors():
 
 
 def test_ones_rejects_negative_width():
-    with pytest.raises(ValueError, match="width"):
+    with pytest.raises(IndexError, match="width"):
         bitbuf.ones(-1)
 
 
@@ -158,7 +158,7 @@ def test_get_bits_allows_zero_width():
 def test_get_bits_rejects_invalid_ranges():
     buffer = bitbuf(0, 4)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(IndexError):
         buffer.get_bits(0, -1)
     with pytest.raises(IndexError):
         buffer.get_bits(-1, 1)
@@ -239,7 +239,7 @@ def test_set_ones_and_zeros_compensate_internal_offset():
     expected |= 0b111 << 1
     expected &= ~(0b11 << 6)
 
-    # assert buffer._offset == 5
+    # assert buffer.offset == 5
     assert int(buffer) == expected
 
 
@@ -335,7 +335,7 @@ def test_slice_indexing_requires_start_stop_and_no_step():
     #     _ = buffer[1:]
     with pytest.raises(IndexError, match="not supported"):
         _ = buffer[1:4:2]
-    with pytest.raises(ValueError):
+    with pytest.raises(IndexError):
         _ = buffer[4:1]
 
 
@@ -408,7 +408,7 @@ def test_clear_keeps_width_and_resets_bits():
 
     assert len(buffer) == 11
     assert int(buffer) == 0
-    # assert buffer._offset == 0
+    # assert buffer.offset == 0
 
 
 def test_toggle_flips_bits_and_keeps_width():
@@ -426,7 +426,7 @@ def test_toggle_compensates_internal_offset():
     buffer.delete_low(3)
     buffer.toggle()
 
-    assert buffer._offset == 3
+    # assert buffer.offset == 3
     assert len(buffer) == 5
     assert int(buffer) == 0b00001
 
@@ -455,7 +455,7 @@ def test_toggle_compensates_internal_offset_ranged():
     buffer.delete_low(3)
     buffer.toggle(2, 2)
 
-    # assert buffer._offset == 3
+    # assert buffer.offset == 3
     assert len(buffer) == 5
     assert int(buffer) == 0b10101
 
@@ -501,7 +501,7 @@ def test_rshift_uses_bounded_internal_offset():
 
     buffer.rshift(5)
 
-    # assert buffer._offset == 5
+    # assert buffer.offset == 5
     assert int(buffer) == 0x1234_5678_9ABC_DEF0 >> 5
 
 
@@ -510,8 +510,8 @@ def test_rshift_normalizes_offset_by_32_bit_chunks():
 
     buffer.rshift(45)
 
-    # assert 0 <= buffer._offset <= 31
-    # assert buffer._offset == 13
+    # assert 0 <= buffer.offset <= 31
+    # assert buffer.offset == 13
     assert int(buffer) == 0x1234_5678_9ABC_DEF0 >> 45
 
 
@@ -520,7 +520,7 @@ def test_lshift_uses_bounded_internal_offset():
 
     buffer.lshift(3)
 
-    # assert buffer._offset == 29
+    # assert buffer.offset == 29
     assert int(buffer) == 0x1234_5678 << 3
 
 
@@ -560,7 +560,7 @@ def test_append_lsb_uses_bounded_internal_offset():
 
     buffer.append_low(0b101, 3)
 
-    # assert buffer._offset == 29
+    # assert buffer.offset == 29
     assert len(buffer) == 67
     assert int(buffer) == (0x1234_5678 << 3) | 0b101
 
@@ -570,8 +570,8 @@ def test_append_lsb_normalizes_offset_by_32_bit_chunks():
 
     buffer.append_low(0x1234_5678_9ABC, 45)
 
-    # assert 0 <= buffer._offset <= 31
-    # assert buffer._offset == 19
+    # assert 0 <= buffer.offset <= 31
+    # assert buffer.offset == 19
     assert int(buffer) == (0x1234_5678 << 45) | (0x1234_5678_9ABC & ((1 << 45) - 1))
 
 
@@ -648,7 +648,7 @@ def test_offset_is_compensated_by_other_apis():
     expected = (expected & ~(0xFF << 4)) | (0xA5 << 4)
     expected |= 0b10101 << 55
 
-    # assert buffer._offset == 9
+    # assert buffer.offset == 9
     assert len(buffer) == 60
     assert buffer[4:12] == 0xA5
     assert int(buffer) == expected

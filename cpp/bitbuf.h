@@ -11,17 +11,17 @@ public:
     using data_t = uint64_t;
 
 #ifndef BITBUF_TESTS
-    private:
+private:
 #endif
-    static constexpr const int inlineBufferWords = 6;
+    static constexpr const int inlineBufferWords = 4;
     static constexpr const uint32_t initialOffsetWords = 1;
     static constexpr const uint32_t initialOffset = initialOffsetWords * 64;
     static constexpr const uint32_t initialHeapOffsetWords = 2;
     static constexpr const uint32_t initialHeapOffset = initialHeapOffsetWords * 64;
 
     uint32_t capacity = inlineBufferWords; ///< Buffer capacity in words
-    uint32_t length; ///< Bit length of the object
-    uint32_t offset; ///< Bit offset of the object
+    uint32_t length = 0; ///< Bit length of the object
+    uint32_t offset = 0; ///< Bit offset of the object
 
     union {
         data_t inline_buffer[inlineBufferWords];
@@ -46,7 +46,7 @@ public:
 
     void set_bits_nocheck(uint32_t pos, const data_t *src_buffer, uint32_t width);
 
-    BitBuf::data_t*ensure_empty_buffer(uint32_t length);
+    BitBuf::data_t *ensure_empty_buffer(uint32_t length);
 
 //    uint8_t *ensure_empty_buffer_aligned_8b(uint32_t length);
     void ensure_buffer(int64_t offset_delta, int64_t length_delta); // no subword shifts and fill new space with zeros
@@ -146,5 +146,3 @@ public:
 
     // uint8_t *normalize_buffer_word();
 };
-
-static_assert(sizeof(BitBuf) <= 64, "Size of BitBuf should less than size of cache line");

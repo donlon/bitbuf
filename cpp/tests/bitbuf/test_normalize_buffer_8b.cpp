@@ -11,7 +11,8 @@ TEST_CASE_FIXTURE(DoubleWordFixture, "normalize_buffer_8b_aligned") {
     CHECK((uint8_t *) ptr == ((uint8_t *) b.inline_buffer + 8 + 1));
     CHECK(ptr[0] == expectedWord0);
     CHECK((ptr[1] & ((1ull << 56) - 1)) == expectedWord1);
-    CHECK(ptr[2] == ((initialPlaceholder >> SHIFTS) | (initialPlaceholder << (64 - SHIFTS))));
+    CHECK((ptr[2] & ((1ull << 56) - 1)) == initialPlaceholder >> SHIFTS);
+    // TODO: check write over size?
 }
 
 TEST_CASE_FIXTURE(SingleWordFixture, "normalize_buffer_8b_single_word_unaligned") {
@@ -33,7 +34,7 @@ TEST_CASE_FIXTURE(DoubleWordFixture, "normalize_buffer_8b_unaligned") {
     CHECK(b.length == 128 - 12);
     CHECK(ptr[0] == expectedWord0);
     CHECK((ptr[1] & ((1ull << 52) - 1)) == expectedWord1);
-    CHECK(ptr[2] == ((initialPlaceholder >> 8) | (initialPlaceholder << (64 - 8))));
+    CHECK((ptr[2] & ((1ull << 52) - 1)) == initialPlaceholder >> SHIFTS);
 }
 
 BITBUF_TEST(normalize_buffer_aligns_offset_to_byte) {

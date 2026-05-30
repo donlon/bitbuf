@@ -1,60 +1,117 @@
 #include "py_bitbuf.h"
 
-#include <nanobind/nanobind.h>
-#include <nanobind/stl/string.h>
+#define PYFUNC(function) reinterpret_cast<PyCFunction>(function)
 
-namespace nb = nanobind;
+static PyMethodDef PyBitBuf_methods[] = {
+        /* Static methods */
+        {"from_int",              PYFUNC(PyBitBuf_from_int),              METH_VARARGS | METH_KEYWORDS |
+                                                                          METH_CLASS,                   nullptr},
+        {"from_bytes",            PYFUNC(PyBitBuf_from_bytes),            METH_VARARGS | METH_KEYWORDS |
+                                                                          METH_CLASS,                   nullptr},
+        {"zeros",                 PYFUNC(PyBitBuf_zeros),                 METH_O | METH_CLASS,          nullptr},
+        {"ones",                  PYFUNC(PyBitBuf_ones),                  METH_O | METH_CLASS,          nullptr},
+        /* Builtin methods */
+        {"__int__",               PYFUNC(PyBitBuf_as_int),                METH_NOARGS, nullptr},
+        {"__index__",             PYFUNC(PyBitBuf_as_int),                METH_NOARGS, nullptr},
+        {"__bytes__",             PYFUNC(PyBitBuf_as_bytes),              METH_NOARGS, nullptr},
+        /* Class methods */
+        {"assign",                PYFUNC(PyBitBuf_assign),                METH_VARARGS | METH_KEYWORDS, nullptr},
+        {"resize",                PYFUNC(PyBitBuf_resize),                METH_O,      nullptr},
+        {"clear",                 PYFUNC(PyBitBuf_clear),                 METH_NOARGS, "Clear"},
+        {"get_bit",               PYFUNC(PyBitBuf_get_bit),               METH_O,      nullptr},
+        {"get_bits",              PYFUNC(PyBitBuf_get_bits),              METH_VARARGS | METH_KEYWORDS, nullptr},
+        {"get_bits_as_bytes",     PYFUNC(PyBitBuf_get_bits_as_bytes),     METH_VARARGS | METH_KEYWORDS, nullptr},
+        {"get_bits_as_bytearray", PYFUNC(PyBitBuf_get_bits_as_bytearray), METH_VARARGS | METH_KEYWORDS, nullptr},
+        {"slice",                 PYFUNC(PyBitBuf_slice),                 METH_VARARGS | METH_KEYWORDS, nullptr},
+        {"set_bit",               PYFUNC(PyBitBuf_set_bit),               METH_VARARGS | METH_KEYWORDS, nullptr},
+        {"set_bits",              PYFUNC(PyBitBuf_set_bits),              METH_VARARGS | METH_KEYWORDS, nullptr},
+        {"set_ones",              PYFUNC(PyBitBuf_set_ones),              METH_VARARGS | METH_KEYWORDS, nullptr},
+        {"set_zeros",             PYFUNC(PyBitBuf_set_zeros),             METH_VARARGS | METH_KEYWORDS, nullptr},
+        {"toggle",                PYFUNC(PyBitBuf_toggle),                METH_VARARGS | METH_KEYWORDS, nullptr},
+        {"lshift",                PYFUNC(PyBitBuf_lshift),                METH_O,      nullptr},
+        {"rshift",                PYFUNC(PyBitBuf_rshift),                METH_O,      nullptr},
+        {"append_low",            PYFUNC(PyBitBuf_append_low),            METH_VARARGS | METH_KEYWORDS, nullptr},
+        {"append_high",           PYFUNC(PyBitBuf_append_high),           METH_VARARGS | METH_KEYWORDS, nullptr},
+        {"delete_low",            PYFUNC(PyBitBuf_delete_low),            METH_O,      nullptr},
+        {"delete_high",           PYFUNC(PyBitBuf_delete_high),           METH_O,      nullptr},
+        {"pop_low",               PYFUNC(PyBitBuf_pop_low),               METH_O,      nullptr},
+        {"pop_high",              PYFUNC(PyBitBuf_pop_high),              METH_O,      nullptr},
+        {"bytearray",             PYFUNC(PyBitBuf_bytearray),             METH_NOARGS, nullptr},
+        {"bytes",                 PYFUNC(PyBitBuf_bytes_method),          METH_NOARGS, nullptr},
+        {"hex",                   PYFUNC(PyBitBuf_hex),                   METH_NOARGS, nullptr},
+        {"int",                   PYFUNC(PyBitBuf_int_method),            METH_NOARGS, nullptr},
+        {nullptr, nullptr, 0,                                                          nullptr},
+};
 
-NB_MODULE(_bitbuf, m) {
-    m.doc() = "nanobind C++ implementation for bitbuf";
+static PyGetSetDef PyBitBuf_getset[] = {
+        {"width",  PyBitBuf_get_width,  nullptr, nullptr, nullptr},
+        {"nbytes", PyBitBuf_get_nbytes, nullptr, nullptr, nullptr},
+        {"offset", PyBitBuf_get_offset, nullptr, nullptr, nullptr},
+        {nullptr,  nullptr,             nullptr, nullptr, nullptr},
+};
 
-    nb::class_<PyBitBuf> cls(m, "bitbuf");
+static PyNumberMethods PyBitBuf_number_methods;
+static PySequenceMethods PyBitBuf_sequence_methods;
+static PyMappingMethods PyBitBuf_mapping_methods;
 
-    cls.def(nb::init<>())
-        .def(
-            nb::init<const nb::object &, const nb::object &>(),
-            nb::arg("value") = nb::int_(0),
-            nb::arg("width") = nb::none())
-        .def_static("from_int", &PyBitBuf::from_int, nb::arg("data"), nb::arg("width") = nb::none())
-        .def_static("from_bytes", &PyBitBuf::from_bytes, nb::arg("data"), nb::arg("width") = nb::none())
-        .def_static("zeros", &PyBitBuf::zeros, nb::arg("width"))
-        .def_static("ones", &PyBitBuf::ones, nb::arg("width"))
-        .def("__eq__", &PyBitBuf::eq)
-        .def("__len__", &PyBitBuf::len)
-        .def("__int__", &PyBitBuf::as_int)
-        .def("__index__", &PyBitBuf::as_index)
-        .def("__bytes__", &PyBitBuf::as_bytes)
-        .def("__repr__", &PyBitBuf::repr)
-        .def("__getitem__", &PyBitBuf::getitem)
-        .def("__setitem__", &PyBitBuf::setitem)
-        .def("__ilshift__", &PyBitBuf::ilshift, nb::rv_policy::reference_internal)
-        .def("__irshift__", &PyBitBuf::irshift, nb::rv_policy::reference_internal)
-        .def("assign", &PyBitBuf::assign, nb::arg("value") = nb::int_(0), nb::arg("width") = nb::none(), nb::rv_policy::reference_internal)
-        .def("resize", &PyBitBuf::resize, nb::arg("width"), nb::rv_policy::reference_internal)
-        .def("clear", &PyBitBuf::clear, nb::rv_policy::reference_internal)
-        .def("get_bit", &PyBitBuf::get_bit, nb::arg("pos"))
-        .def("get_bits", &PyBitBuf::get_bits, nb::arg("pos"), nb::arg("width"))
-        .def("get_bits_as_bytes", &PyBitBuf::get_bits_as_bytes, nb::arg("pos"), nb::arg("width"))
-        .def("get_bits_as_bytearray", &PyBitBuf::get_bits_as_bytearray, nb::arg("pos"), nb::arg("width"))
-        .def("slice", &PyBitBuf::slice, nb::arg("pos"), nb::arg("width"))
-        .def("set_bit", &PyBitBuf::set_bit, nb::arg("pos"), nb::arg("value") = nb::int_(1), nb::rv_policy::reference_internal)
-        .def("set_bits", &PyBitBuf::set_bits, nb::arg("pos"), nb::arg("value") = nb::int_(0), nb::arg("width") = nb::none(), nb::rv_policy::reference_internal)
-        .def("set_ones", &PyBitBuf::set_ones, nb::arg("pos"), nb::arg("width"), nb::rv_policy::reference_internal)
-        .def("set_zeros", &PyBitBuf::set_zeros, nb::arg("pos"), nb::arg("width"), nb::rv_policy::reference_internal)
-        .def("toggle", &PyBitBuf::toggle, nb::arg("pos") = nb::int_(0), nb::arg("width") = nb::none(), nb::rv_policy::reference_internal)
-        .def("lshift", &PyBitBuf::lshift, nb::arg("bits"), nb::rv_policy::reference_internal)
-        .def("rshift", &PyBitBuf::rshift, nb::arg("bits"), nb::rv_policy::reference_internal)
-        .def("append_low", &PyBitBuf::append_low, nb::arg("value") = nb::int_(0), nb::arg("width") = nb::none(), nb::rv_policy::reference_internal)
-        .def("append_high", &PyBitBuf::append_high, nb::arg("value") = nb::int_(0), nb::arg("width") = nb::none(), nb::rv_policy::reference_internal)
-        .def("delete_low", &PyBitBuf::delete_low, nb::arg("width"), nb::rv_policy::reference_internal)
-        .def("delete_high", &PyBitBuf::delete_high, nb::arg("width"), nb::rv_policy::reference_internal)
-        .def("pop_low", &PyBitBuf::pop_low, nb::arg("width"))
-        .def("pop_high", &PyBitBuf::pop_high, nb::arg("width"))
-        .def("bytearray", &PyBitBuf::as_bytearray)
-        .def("bytes", &PyBitBuf::bytes)
-        .def("hex", &PyBitBuf::hex)
-        .def("int", &PyBitBuf::int_value)
-        .def_prop_ro("width", &PyBitBuf::width)
-        .def_prop_ro("nbytes", &PyBitBuf::nbytes)
-        .def_prop_ro("offset", &PyBitBuf::get_offset);
+PyTypeObject PyBitBufType = {
+        PyVarObject_HEAD_INIT(nullptr, 0)
+};
+
+static PyModuleDef bitbuf_module = {
+        PyModuleDef_HEAD_INIT,
+        "_bitbuf",
+        "CPython C-API implementation for bitbuf",
+        -1,
+        nullptr,
+};
+
+PyMODINIT_FUNC PyInit__bitbuf(void) { // NOLINT
+    PyBitBuf_number_methods = {};
+    PyBitBuf_number_methods.nb_int = PyBitBuf_as_index;
+    PyBitBuf_number_methods.nb_inplace_lshift = PyBitBuf_ilshift;
+    PyBitBuf_number_methods.nb_inplace_rshift = PyBitBuf_irshift;
+    PyBitBuf_number_methods.nb_index = PyBitBuf_as_index;
+
+    PyBitBuf_sequence_methods = {};
+    PyBitBuf_sequence_methods.sq_length = PyBitBuf_len;
+
+    PyBitBuf_mapping_methods = {};
+    PyBitBuf_mapping_methods.mp_length = PyBitBuf_len;
+    PyBitBuf_mapping_methods.mp_subscript = PyBitBuf_getitem;
+    PyBitBuf_mapping_methods.mp_ass_subscript = PyBitBuf_setitem;
+
+    PyBitBufType.tp_name = "_bitbuf.bitbuf";
+    PyBitBufType.tp_basicsize = sizeof(PyBitBufObject);
+    PyBitBufType.tp_itemsize = 0;
+    PyBitBufType.tp_dealloc = (destructor) PyBitBuf_dealloc;
+    PyBitBufType.tp_repr = PyBitBuf_repr;
+    PyBitBufType.tp_as_number = &PyBitBuf_number_methods;
+    PyBitBufType.tp_as_sequence = &PyBitBuf_sequence_methods;
+    PyBitBufType.tp_as_mapping = &PyBitBuf_mapping_methods;
+    PyBitBufType.tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE;
+    PyBitBufType.tp_doc = "CPython C-API implementation for bitbuf";
+    PyBitBufType.tp_richcompare = PyBitBuf_richcompare;
+    PyBitBufType.tp_methods = PyBitBuf_methods;
+    PyBitBufType.tp_getset = PyBitBuf_getset;
+    PyBitBufType.tp_init = (initproc) PyBitBuf_init;
+    PyBitBufType.tp_new = PyBitBuf_new;
+
+    if (PyType_Ready(&PyBitBufType) < 0) {
+        return nullptr;
+    }
+
+    PyObject *m = PyModule_Create(&bitbuf_module);
+    if (m == nullptr) {
+        return nullptr;
+    }
+
+    Py_INCREF(&PyBitBufType);
+    if (PyModule_AddObject(m, "bitbuf", reinterpret_cast<PyObject *>(&PyBitBufType)) < 0) {
+        Py_DECREF(&PyBitBufType);
+        Py_DECREF(m);
+        return nullptr;
+    }
+
+    return m;
 }

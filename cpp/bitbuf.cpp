@@ -338,6 +338,7 @@ BitBuf &BitBuf::set_zeros(uint32_t pos, uint32_t width) {
 /// @param width Size of bits to toggle
 /// @return The bitbuf object
 BitBuf &BitBuf::toggle(uint32_t pos, uint32_t width) {
+    if (width == 0) return *this; // TODO: testcase
     if (pos + width > length) return *this; // nb::index_error("bit range out of range");
     uint64_t toggle_buf[16];
     if (width > sizeof(toggle_buf) * 8) throw std::exception();

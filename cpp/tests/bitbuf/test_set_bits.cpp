@@ -33,10 +33,10 @@ TEST_CASE_FIXTURE(MultipleWordsFixture, "set_bits_multiple_words_aligned") {
     b.set_bits(8, &value, 64);
     uint64_t mask0 = 0xffffffffffffff00ull;
     uint64_t mask1 = 0x00000000000000ffull;
-    CHECK(b.inline_buffer[0] == initialPlaceholder);
-    CHECK(b.inline_buffer[1] == (initialWord0 & ~mask0 | (value << 8) & mask0));
-    CHECK(b.inline_buffer[2] == (initialWord1 & ~mask1 | (value >> 56) & mask1));
-    CHECK(b.inline_buffer[3] == initialWord2);
+    CHECK(b.heap_buffer[1] == initialPlaceholder);
+    CHECK(b.heap_buffer[2] == (initialWord0 & ~mask0 | (value << 8) & mask0));
+    CHECK(b.heap_buffer[3] == (initialWord1 & ~mask1 | (value >> 56) & mask1));
+    CHECK(b.heap_buffer[4] == initialWord2);
 }
 
 TEST_CASE_FIXTURE(MultipleWordsFixture, "set_bits_multiple_words_aligned_2") {
@@ -44,10 +44,10 @@ TEST_CASE_FIXTURE(MultipleWordsFixture, "set_bits_multiple_words_aligned_2") {
     b.set_bits(8, values, 70);
     uint64_t mask0 = 0xffffffffffffff00ull;
     uint64_t mask1 = 0x0000000000003fffull;
-    CHECK(b.inline_buffer[0] == initialPlaceholder);
-    CHECK(b.inline_buffer[1] == (initialWord0 & ~mask0 | (values[0] << 8) & mask0));
-    CHECK(b.inline_buffer[2] == (initialWord1 & ~mask1 | ((values[0] >> 56) + (values[1] << 8)) & mask1));
-    CHECK(b.inline_buffer[3] == initialWord2);
+    CHECK(b.heap_buffer[1] == initialPlaceholder);
+    CHECK(b.heap_buffer[2] == (initialWord0 & ~mask0 | (values[0] << 8) & mask0));
+    CHECK(b.heap_buffer[3] == (initialWord1 & ~mask1 | ((values[0] >> 56) + (values[1] << 8)) & mask1));
+    CHECK(b.heap_buffer[4] == initialWord2);
 }
 
 TEST_CASE_FIXTURE(MultipleWordsFixture, "set_bits_multiple_words_unaligned") {
@@ -55,10 +55,10 @@ TEST_CASE_FIXTURE(MultipleWordsFixture, "set_bits_multiple_words_unaligned") {
     b.set_bits(12, &value, 64);
     uint64_t mask0 = 0xfffffffffffff000ull;
     uint64_t mask1 = 0x0000000000000fffull;
-    CHECK(b.inline_buffer[0] == initialPlaceholder);
-    CHECK(b.inline_buffer[1] == (initialWord0 & ~mask0 | (value << 12) & mask0));
-    CHECK(b.inline_buffer[2] == (initialWord1 & ~mask1 | (value >> 52) & mask1));
-    CHECK(b.inline_buffer[3] == initialWord2);
+    CHECK(b.heap_buffer[1] == initialPlaceholder);
+    CHECK(b.heap_buffer[2] == (initialWord0 & ~mask0 | (value << 12) & mask0));
+    CHECK(b.heap_buffer[3] == (initialWord1 & ~mask1 | (value >> 52) & mask1));
+    CHECK(b.heap_buffer[4] == initialWord2);
 }
 
 TEST_CASE_FIXTURE(MultipleWordsFixture, "set_bits_multiple_words_unaligned_2") {
@@ -66,10 +66,10 @@ TEST_CASE_FIXTURE(MultipleWordsFixture, "set_bits_multiple_words_unaligned_2") {
     b.set_bits(12, &value, 70);
     uint64_t mask0 = 0xfffffffffffff000ull;
     uint64_t mask1 = 0x000000000003ffffull;
-    CHECK(b.inline_buffer[0] == initialPlaceholder);
-    CHECK(b.inline_buffer[1] == (initialWord0 & ~mask0 | (value << 12) & mask0));
-    CHECK(b.inline_buffer[2] == (initialWord1 & ~mask1 | (value >> 52) & mask1));
-    CHECK(b.inline_buffer[3] == initialWord2);
+    CHECK(b.heap_buffer[1] == initialPlaceholder);
+    CHECK(b.heap_buffer[2] == (initialWord0 & ~mask0 | (value << 12) & mask0));
+    CHECK(b.heap_buffer[3] == (initialWord1 & ~mask1 | (value >> 52) & mask1));
+    CHECK(b.heap_buffer[4] == initialWord2);
 }
 
 BITBUF_TEST(set_bits_basic_and_cross_word) {

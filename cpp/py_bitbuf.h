@@ -5,108 +5,68 @@
 #include <string>
 #include <utility>
 
-#include <nanobind/nanobind.h>
+#include <Python.h>
 #include "bitbuf.h"
 
-namespace nb = nanobind;
+typedef struct {
+    PyObject_HEAD
+    BitBuf bitbuf;
+} PyBitBufObject;
 
-class PyBitBuf {
-    using data_t = BitBuf::data_t;
-public:
-    PyBitBuf();
+static_assert(sizeof(PyBitBufObject) <= 64, "Size of BitBuf should less than size of cache line");
 
-    PyBitBuf(const nb::object &value, const nb::object &width);
+extern PyTypeObject PyBitBufType;
 
-    ~PyBitBuf();
+#define PyBitBuf_Check(op) PyObject_TypeCheck((op), &PyBitBufType)
+#define PyBitBuf_CAST(op) _Py_CAST(PyBitBufObject*, (op))
 
-    static PyBitBuf from_int(const nb::object &data, const nb::object &width);
+PyObject *PyBitBuf_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
+int PyBitBuf_init(PyBitBufObject *self, PyObject *args, PyObject *kwds);
+void PyBitBuf_dealloc(PyBitBufObject *self);
 
-    static PyBitBuf from_bytes(const nb::object &data, const nb::object &width);
+PyObject *PyBitBuf_from_int(PyObject *cls, PyObject *args, PyObject *kwargs);
+PyObject *PyBitBuf_from_bytes(PyObject *cls, PyObject *args, PyObject *kwargs);
+PyObject *PyBitBuf_zeros(PyObject *cls, PyObject *width);
+PyObject *PyBitBuf_ones(PyObject *cls, PyObject *width);
 
-    static PyBitBuf zeros(const nb::object &width);
+PyObject *PyBitBuf_richcompare(PyObject *self, PyObject *other, int op);
+Py_ssize_t PyBitBuf_len(PyObject *self);
+PyObject *PyBitBuf_as_int(PyObject *self, PyObject *Py_UNUSED(ignored));
+PyObject *PyBitBuf_as_index(PyObject *self);
+PyObject *PyBitBuf_as_bytes(PyObject *self, PyObject *Py_UNUSED(ignored));
+PyObject *PyBitBuf_repr(PyObject *self);
+PyObject *PyBitBuf_getitem(PyObject *self, PyObject *key);
+int PyBitBuf_setitem(PyObject *self, PyObject *key, PyObject *value);
 
-    static PyBitBuf ones(const nb::object &width);
+PyObject *PyBitBuf_ilshift(PyObject *self, PyObject *arg);
+PyObject *PyBitBuf_irshift(PyObject *self, PyObject *arg);
 
-    bool eq(const nb::object &other);
+PyObject *PyBitBuf_assign(PyObject *self, PyObject *args, PyObject *kwargs);
+PyObject *PyBitBuf_resize(PyObject *self, PyObject *width_);
+PyObject *PyBitBuf_clear(PyObject *self, PyObject *Py_UNUSED(ignored));
+PyObject *PyBitBuf_get_bit(PyObject *self, PyObject *pos_);
+PyObject *PyBitBuf_get_bits(PyObject *self, PyObject *args, PyObject *kwargs);
+PyObject *PyBitBuf_get_bits_as_bytes(PyObject *self, PyObject *args, PyObject *kwargs);
+PyObject *PyBitBuf_get_bits_as_bytearray(PyObject *self, PyObject *args, PyObject *kwargs);
+PyObject *PyBitBuf_slice(PyObject *self, PyObject *args, PyObject *kwargs);
+PyObject *PyBitBuf_set_bit(PyObject *self, PyObject *args, PyObject *kwargs);
+PyObject *PyBitBuf_set_bits(PyObject *self, PyObject *args, PyObject *kwargs);
+PyObject *PyBitBuf_set_ones(PyObject *self, PyObject *args, PyObject *kwargs);
+PyObject *PyBitBuf_set_zeros(PyObject *self, PyObject *args, PyObject *kwargs);
+PyObject *PyBitBuf_toggle(PyObject *self, PyObject *args, PyObject *kwargs);
+PyObject *PyBitBuf_lshift(PyObject *self, PyObject *bits_);
+PyObject *PyBitBuf_rshift(PyObject *self, PyObject *bits_);
+PyObject *PyBitBuf_append_low(PyObject *self, PyObject *args, PyObject *kwargs);
+PyObject *PyBitBuf_append_high(PyObject *self, PyObject *args, PyObject *kwargs);
+PyObject *PyBitBuf_delete_low(PyObject *self, PyObject *width_);
+PyObject *PyBitBuf_delete_high(PyObject *self, PyObject *width_);
+PyObject *PyBitBuf_pop_low(PyObject *self, PyObject *width_);
+PyObject *PyBitBuf_pop_high(PyObject *self, PyObject *width_);
+PyObject *PyBitBuf_bytearray(PyObject *self, PyObject *Py_UNUSED(ignored));
+PyObject *PyBitBuf_bytes_method(PyObject *self, PyObject *Py_UNUSED(ignored));
+PyObject *PyBitBuf_hex(PyObject *self, PyObject *Py_UNUSED(ignored));
+PyObject *PyBitBuf_int_method(PyObject *self, PyObject *Py_UNUSED(ignored));
 
-    std::size_t len() const;
-
-    nb::int_ as_int();
-
-    nb::int_ as_index();
-
-    nb::bytes as_bytes();
-
-    std::string repr();
-
-    nb::object getitem(const nb::object &key) const;
-
-    void setitem(const nb::object &key, const nb::object &value);
-
-    PyBitBuf &ilshift(const nb::object &bits);
-
-    PyBitBuf &irshift(const nb::object &bits);
-
-    PyBitBuf &assign(const nb::object &value, const nb::object &width);
-
-    PyBitBuf &resize(const nb::object &width);
-
-    PyBitBuf &clear();
-
-    nb::int_ get_bit(const nb::object &pos) const;
-
-    nb::int_ get_bits(const nb::object &pos_, const nb::object &width_) const;
-
-    nb::bytes get_bits_as_bytes(const nb::object &pos, const nb::object &width) const;
-
-    nb::bytearray get_bits_as_bytearray(const nb::object &pos, const nb::object &width) const;
-
-    PyBitBuf slice(const nb::object &pos, const nb::object &width) const;
-
-    PyBitBuf &set_bit(const nb::object &pos, const nb::object &value);
-
-    PyBitBuf &set_bits(const nb::object &pos, const nb::object &value, const nb::object &width);
-
-    PyBitBuf &set_ones(const nb::object &pos, const nb::object &width);
-
-    PyBitBuf &set_zeros(const nb::object &pos, const nb::object &width);
-
-    PyBitBuf &toggle(const nb::object &pos, const nb::object &width);
-
-    PyBitBuf &lshift(const nb::object &bits);
-
-    PyBitBuf &rshift(const nb::object &bits_);
-
-    PyBitBuf &append_low(const nb::object &value, const nb::object &width);
-
-    PyBitBuf &append_high(const nb::object &value, const nb::object &width);
-
-    PyBitBuf &delete_low(const nb::object &width);
-
-    PyBitBuf &delete_high(const nb::object &width);
-
-    nb::int_ pop_low(const nb::object &width);
-
-    nb::int_ pop_high(const nb::object &width_);
-
-    nb::bytearray as_bytearray();
-
-    nb::bytes bytes();
-
-    std::string hex();
-
-    nb::int_ int_value();
-
-    uint32_t width() const;
-
-    uint32_t nbytes() const;
-
-    uint32_t get_offset() const;
-
-public:
-    PyBitBuf &set_bits_obj(int64_t pos, int64_t value, const nb::object &width);
-
-    BitBuf bitbuf{};
-    uint32_t mark;
-
-};
+PyObject *PyBitBuf_get_width(PyObject *self, void *closure);
+PyObject *PyBitBuf_get_nbytes(PyObject *self, void *closure);
+PyObject *PyBitBuf_get_offset(PyObject *self, void *closure);

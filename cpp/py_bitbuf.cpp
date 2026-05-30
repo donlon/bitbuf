@@ -1,7 +1,14 @@
 #include "py_bitbuf.h"
-#include "nanobind/ndarray.h"
 
 #include <memory>
+
+PyObject *PyBitBuf_get_bit_common(PyObject *self_obj, int pos);
+
+PyObject *PyBitBuf_get_bits_common(PyObject *self_obj, int pos, int width);
+
+PyObject *PyBitBuf_set_bit_common(PyObject *self_obj, int pos, int value);
+
+bool PyBitBuf_set_bits_common(PyObject *self_obj, int pos, PyObject *width, PyObject *value);
 
 static std::string to_hex_string(const uint8_t *ptr, size_t size) {
     static const char *hex_table = "0123456789abcdef";
@@ -25,23 +32,12 @@ static std::string to_hex_string(const uint8_t *ptr, size_t size) {
 }
 
 struct ExtractedBuffer {
-    uint32_t size = 0;
+    BitBuf::data_t inline_buffer[8]{};
     const BitBuf::data_t *buffer = nullptr;
+    uint32_t size = 0;
     bool is_owned = false;
 
-    explicit ExtractedBuffer(
-            uint32_t buffer_size,
-            int64_t actual_size,
-            const BitBuf::data_t *buffer,
-            bool is_owned = false
-    ) : buffer(buffer), is_owned(is_owned) {
-        if (actual_size >= 0) {
-            if (actual_size > buffer_size) throw nb::value_error("width is bigger than actual data size");
-            this->size = actual_size;
-        } else {
-            this->size = buffer_size;
-        }
-    }
+    explicit ExtractedBuffer() = default;
 
     // Only Move assignment operator is allowed
     ExtractedBuffer(const ExtractedBuffer &other) = delete;
@@ -63,474 +59,877 @@ struct ExtractedBuffer {
         is_owned = false;
     }
 
-    static ExtractedBuffer extract(const nb::object &value_, const nb::object &width_) {
-        PyObject *ptr = value_.ptr();
-        if (PyLong_Check(ptr) && width_.is_none()) {
-            throw nb::value_error("width is not specified for int data");
+    bool extract(PyObject *value_, PyObject *width_) {
+        if (PyLong_Check(value_) && width_ == Py_None) {
+            PyErr_SetString(PyExc_ValueError, "width is not specified for int data");
+            return false;
         }
         int64_t width;
-        if (!width_.is_none()) {
-            auto w = nb::cast<int>(width_);
-            if (w < 0) throw nb::value_error("invalid argument 'width'");
+        if (width_ != Py_None) {
+            long w = PyLong_AsLong(width_);
+            if (w == -1 && PyErr_Occurred()) {
+                return false;
+            }
+            if (w < 0) {
+                PyErr_SetString(PyExc_ValueError, "invalid argument 'width'");
+                return false;
+            }
             width = w;
         } else {
             width = -1;
         }
 
-        if (nb::isinstance<PyBitBuf>(value_)) {
-            auto &other = nb::cast<PyBitBuf &>(value_);
-            uint8_t *buf = other.bitbuf.normalize_buffer_8b();
+        if (PyBitBuf_Check(value_)) {
+            auto *other = PyBitBuf_CAST(value_);
+            uint8_t *buf = other->bitbuf.normalize_buffer_8b();
             // TODO: support zero padding
-            return ExtractedBuffer{
-                    other.bitbuf.len(),
+            return assign_buffer(
+                    other->bitbuf.len(),
                     width,
-                    (BitBuf::data_t *) buf,
-            };
+                    (BitBuf::data_t *) buf
+            );
         }
-        if (PyLong_Check(ptr)) {
-            Py_ssize_t size = PyLong_AsNativeBytes(ptr, nullptr, 0, Py_ASNATIVEBYTES_LITTLE_ENDIAN);
-            if (size < width) size = width;
-            auto buf = new uint64_t[(size + 7) / 8];
-            PyLong_AsNativeBytes(ptr, buf, size, Py_ASNATIVEBYTES_LITTLE_ENDIAN);
-            return ExtractedBuffer{
+        if (PyLong_Check(value_)) {
+            Py_ssize_t int_size = PyLong_AsNativeBytes(value_, nullptr, 0, Py_ASNATIVEBYTES_LITTLE_ENDIAN);
+            if (int_size < width) int_size = width;
+            auto buf = int_size < sizeof(inline_buffer) ? inline_buffer : new uint64_t[(int_size + 7) / 8];
+            PyLong_AsNativeBytes(value_, buf, int_size, Py_ASNATIVEBYTES_LITTLE_ENDIAN);
+            return assign_buffer(
                     static_cast<uint32_t>(width),
                     width,
                     buf,
-                    true,
-            };
-        } else if (PyBytes_Check(ptr)) {
-            return ExtractedBuffer{
-                    (uint32_t) PyBytes_GET_SIZE(ptr) * 8,
+                    buf != inline_buffer
+            );
+        } else if (PyBytes_Check(value_)) {
+            return assign_buffer(
+                    (uint32_t) PyBytes_GET_SIZE(value_) * 8,
                     width,
-                    reinterpret_cast<const BitBuf::data_t *>(PyBytes_AsString(ptr)),
-            };
-        } else if (PyByteArray_Check(ptr)) {
-            return ExtractedBuffer{
-                    (uint32_t) PyByteArray_GET_SIZE(ptr) * 8,
+                    reinterpret_cast<const BitBuf::data_t *>(PyBytes_AsString(value_))
+            );
+        } else if (PyByteArray_Check(value_)) {
+            return assign_buffer(
+                    (uint32_t) PyByteArray_GET_SIZE(value_) * 8,
                     width,
-                    reinterpret_cast<const BitBuf::data_t *>(PyByteArray_AS_STRING(ptr)),
-            };
-        } else if (PyMemoryView_Check(ptr)) {
-            Py_buffer *buffer = PyMemoryView_GET_BUFFER(ptr);
-            return ExtractedBuffer{
-                    (uint32_t) buffer->len * 8,
+                    reinterpret_cast<const BitBuf::data_t *>(PyByteArray_AS_STRING(value_))
+            );
+        } else if (PyMemoryView_Check(value_)) {
+            Py_buffer *buf = PyMemoryView_GET_BUFFER(value_);
+            return assign_buffer(
+                    (uint32_t) buf->len * 8,
                     width,
-                    reinterpret_cast<const BitBuf::data_t *>(buffer->buf),
-            };
-        } else {
-            throw nb::type_error("value must be a bytes-like object");
+                    reinterpret_cast<const BitBuf::data_t *>(buf->buf)
+            );
         }
+
+        PyErr_SetString(PyExc_TypeError, "value must be a bytes-like object");
+        return false;
     }
 
+private:
+    bool assign_buffer(
+            uint32_t buffer_size,
+            int64_t actual_size,
+            const BitBuf::data_t *buffer_,
+            bool is_owned_ = false
+    ) {
+        if (actual_size >= 0) {
+            if (actual_size > buffer_size) {
+                PyErr_SetString(PyExc_ValueError, "width is bigger than actual data size");
+                return false;
+            }
+            this->size = actual_size;
+        } else {
+            this->size = buffer_size;
+        }
+        this->buffer = buffer_;
+        this->is_owned = is_owned_;
+        return true;
+    }
 };
 
-PyBitBuf::PyBitBuf() = default;
-
-PyBitBuf::PyBitBuf(const nb::object &value, const nb::object &width) {
-    assign(value, width);
-}
-
-PyBitBuf::~PyBitBuf() = default;
-
-PyBitBuf PyBitBuf::from_int(const nb::object &data_, const nb::object &width_) {
-    return from_bytes(data_, width_);
-}
-
-PyBitBuf PyBitBuf::from_bytes(const nb::object &data_, const nb::object &width_) {
-    // accept int | bytes | bytearray | memoryview
-    auto ext_buf = ExtractedBuffer::extract(data_, width_);
-
-    PyBitBuf buf{};
-    buf.bitbuf.assign(ext_buf.buffer, ext_buf.size);
-    return buf;
-}
-
-PyBitBuf PyBitBuf::zeros(const nb::object &width_) {
-    auto width = nb::cast<int>(width_);
-    PyBitBuf buf{};
-    buf.bitbuf.assign_zeros(width);
-    return buf;
-}
-
-PyBitBuf PyBitBuf::ones(const nb::object &width_) {
-    auto width = nb::cast<int>(width_);
-    if (width < 0)
-        throw nb::value_error("width must be non-negative");
-    PyBitBuf buf{};
-    buf.bitbuf.assign_ones(width);
-    return buf;
-}
-
-bool PyBitBuf::eq(const nb::object &other) {
-    if (!nb::isinstance<PyBitBuf>(other)) {
-        throw nb::value_error("Py_NotImplemented");
+PyObject *PyBitBuf_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
+    (void) args;
+    (void) kwds;
+    auto *self = PyBitBuf_CAST(type->tp_alloc(type, 0));
+    if (!self) {
+        return nullptr;
     }
-    auto &rhs = nb::cast<PyBitBuf &>(other);
-    return bitbuf.compare(rhs.bitbuf);
+
+    new(&self->bitbuf) BitBuf();
+    return reinterpret_cast<PyObject *>(self);
 }
 
-std::size_t PyBitBuf::len() const {
-    return bitbuf.len();
+void PyBitBuf_dealloc(PyBitBufObject *self) {
+    self->bitbuf.~BitBuf();
+    Py_TYPE(self)->tp_free(reinterpret_cast<PyObject *>(self));
 }
 
-nb::int_ PyBitBuf::as_int() {
-    return int_value();
+int PyBitBuf_init(PyBitBufObject *self, PyObject *args, PyObject *kwds) {
+    static const char *kwlist[] = {"value", "width", nullptr};
+    PyObject *value = Py_None;
+    PyObject *width = Py_None; // TODO: parse int
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OO:bitbuf", const_cast<char **>(kwlist), &value, &width)) {
+        return -1;
+    }
+    if (value == Py_None) {
+        // Empty
+        return 0;
+    }
+
+    ExtractedBuffer buf{};
+    bool ok = buf.extract(value, width);
+    if (!ok)
+        return -1;
+    self->bitbuf.assign(buf.buffer, buf.size);
+    return 0;
 }
 
-nb::int_ PyBitBuf::as_index() {
-    return int_value();
+PyObject *PyBitBuf_from_int(PyObject *cls, PyObject *args, PyObject *kwargs) {
+    return PyObject_Call(cls, args, kwargs);
 }
 
-nb::bytes PyBitBuf::as_bytes() {
-    return bytes();
+PyObject *PyBitBuf_from_bytes(PyObject *cls, PyObject *args, PyObject *kwargs) {
+    return PyObject_Call(cls, args, kwargs);
 }
 
-std::string PyBitBuf::repr() {
-    std::size_t hex_digits = std::max<std::size_t>(1, (bitbuf.len() + 3) / 4);
+static bool parse_int(PyObject *obj, int *out) {
+    long value = PyLong_AsLong(obj);
+    if (value == -1 && PyErr_Occurred()) {
+        return false;
+    }
+    *out = static_cast<int>(value);
+    return true;
+}
+
+PyObject *PyBitBuf_zeros(PyObject *cls, PyObject *width_) {
+    int width = 0;
+    if (!parse_int(width_, &width)) { // TODO: PyLong_AsUnsignedLong
+        return nullptr;
+    }
+    if (width < 0) {
+        PyErr_SetString(PyExc_IndexError, "width must be non-negative");
+        return nullptr;
+    }
+
+    PyObject *obj = PyObject_CallNoArgs(cls);
+    if (obj == nullptr) {
+        return nullptr;
+    }
+    PyBitBuf_CAST(obj)->bitbuf.assign_zeros(static_cast<uint32_t>(width));
+    return obj;
+}
+
+PyObject *PyBitBuf_ones(PyObject *cls, PyObject *width_) {
+    int width = 0;
+    if (!parse_int(width_, &width)) { // TODO: PyLong_AsUnsignedLong
+        return nullptr;
+    }
+    if (width < 0) {
+        PyErr_SetString(PyExc_IndexError, "width must be non-negative");
+        return nullptr;
+    }
+
+    PyObject *obj = PyObject_CallNoArgs(cls);
+    if (obj == nullptr) {
+        return nullptr;
+    }
+    PyBitBuf_CAST(obj)->bitbuf.assign_ones(static_cast<uint32_t>(width));
+    return obj;
+}
+
+PyObject *PyBitBuf_richcompare(PyObject *self_obj, PyObject *other_obj, int op) {
+    if (op != Py_EQ && op != Py_NE) {
+        Py_RETURN_NOTIMPLEMENTED;
+    }
+    if (!PyBitBuf_Check(other_obj)) {
+        PyErr_SetString(PyExc_ValueError, "Py_NotImplemented");
+        return nullptr;
+    }
+    auto *self = PyBitBuf_CAST(self_obj);
+    auto *rhs = PyBitBuf_CAST(other_obj);
+    bool equal = self->bitbuf.compare(rhs->bitbuf) ^ (op == Py_NE);
+    return equal ? Py_True : Py_False;
+}
+
+Py_ssize_t PyBitBuf_len(PyObject *self_obj) {
+    auto *self = PyBitBuf_CAST(self_obj);
+    return static_cast<Py_ssize_t>(self->bitbuf.len()); // TODO: checks all Py_ssize_t
+}
+
+PyObject *PyBitBuf_as_int(PyObject *self_obj, PyObject *Py_UNUSED(ignored)) {
+    auto *self = PyBitBuf_CAST(self_obj);
+    uint8_t *ptr = self->bitbuf.normalize_buffer_8b();
+    return PyLong_FromNativeBytes(
+            reinterpret_cast<const char *>(ptr),
+            static_cast<Py_ssize_t>(self->bitbuf.nbytes()),
+            Py_ASNATIVEBYTES_LITTLE_ENDIAN | Py_ASNATIVEBYTES_UNSIGNED_BUFFER
+    );
+}
+
+PyObject *PyBitBuf_as_index(PyObject *self_obj) {
+    return PyBitBuf_as_int(self_obj, nullptr);
+}
+
+PyObject *PyBitBuf_as_bytes(PyObject *self_obj, PyObject *Py_UNUSED(ignored)) {
+    return PyBitBuf_bytes_method(self_obj, nullptr);
+}
+
+PyObject *PyBitBuf_repr(PyObject *self_obj) {
+    auto *self = PyBitBuf_CAST(self_obj);
+    uint8_t *ptr = self->bitbuf.normalize_buffer_8b();
     std::string hex_value;
-    if (hex_digits <= 64) {
-        hex_value = hex();
+    if (self->bitbuf.len() <= 128) {
+        hex_value = to_hex_string(ptr, self->bitbuf.nbytes());
     } else {
-        uint8_t *ptr = bitbuf.normalize_buffer_8b();
-        // std::string high_hex = to_hex_string(ptr).substr(2);
-        std::string high_hex = "...";
-        std::string low_hex = to_hex_string(ptr, 4).substr(2);
-
-        if (low_hex.size() < 16) {
-            low_hex.insert(0, 16 - low_hex.size(), '0');
-        }
+        std::string high_hex = to_hex_string(ptr + self->bitbuf.nbytes() - 8, 8).substr(2);
+        std::string low_hex = to_hex_string(ptr, 8).substr(2);
         hex_value = "0x" + high_hex + "..." + low_hex;
     }
-    return "bitbuf(len=" + std::to_string(bitbuf.len()) + ", hex=" + hex_value + ")";
+    std::string repr = "bitbuf(len=" + std::to_string(self->bitbuf.len()) + ", hex=" + hex_value + ")";
+    return PyUnicode_FromStringAndSize(repr.data(), static_cast<Py_ssize_t>(repr.size()));
 }
 
-nb::object PyBitBuf::getitem(const nb::object &key) const {
-    if (nb::isinstance<nb::slice>(key)) {
-        auto slice = nb::cast<nb::slice>(key);
-        auto [start, stop, step, slice_length] = slice.compute(bitbuf.len());
-        if (step != 1) {
-            throw nb::index_error("step other that 1 is not supported");
+PyObject *PyBitBuf_getitem(PyObject *self_, PyObject *key) {
+    auto *self = PyBitBuf_CAST(self_);
+
+    if (PySlice_Check(key)) {
+        Py_ssize_t start = 0;
+        Py_ssize_t stop = 0;
+        Py_ssize_t step = 0;
+        Py_ssize_t slice_length = 0;
+        if (PySlice_GetIndicesEx(
+                    key,
+                    static_cast<Py_ssize_t>(self->bitbuf.len()),
+                    &start,
+                    &stop,
+                    &step,
+                    &slice_length) < 0) {
+            return nullptr;
         }
-        return get_bits(nb::int_(start), nb::int_(slice_length)); // TODO: avoid wrapping python object
-    }
-    if (nb::isinstance<nb::int_>(key)) {
-        return get_bit(key);
-    }
-    throw nb::type_error("bit index must be an int or slice");
-}
-
-void PyBitBuf::setitem(const nb::object &key, const nb::object &value) {
-    if (nb::isinstance<nb::slice>(key)) {
-        auto slice = nb::cast<nb::slice>(key);
-        auto [start, stop, step, slice_length] = slice.compute(bitbuf.len());
         if (step != 1) {
-            throw nb::index_error("step other that 1 is not supported");
+            PyErr_SetString(PyExc_IndexError, "step other that 1 is not supported");
+            return nullptr;
         }
-        set_bits(nb::int_(start), value, nb::int_(slice_length)); // TODO: avoid wrapping python object
-        return;
+        return PyBitBuf_get_bits_common(self_, static_cast<int>(start), static_cast<int>(stop - start));
+        // return get_bits(nb::int_(start), nb::int_(slice_length)); // TODO: avoid wrapping python object
     }
-    if (nb::isinstance<nb::int_>(key)) {
-        set_bit(key, value);
-        return;
+    if (PyLong_Check(key)) {
+        int pos = 0;
+        if (!parse_int(key, &pos)) {
+            return nullptr;
+        }
+        return PyBitBuf_get_bit_common(self_, pos);
     }
-    throw nb::type_error("bit index must be an int or slice");
+    PyErr_SetString(PyExc_TypeError, "bit index must be an int or slice");
+    return nullptr;
 }
 
-PyBitBuf &PyBitBuf::ilshift(const nb::object &bits) {
-    return lshift(bits);
+int PyBitBuf_setitem(PyObject *self_obj, PyObject *key, PyObject *value_) {
+    auto *self = PyBitBuf_CAST(self_obj);
+
+    if (PySlice_Check(key)) {
+        Py_ssize_t start = 0;
+        Py_ssize_t stop = 0;
+        Py_ssize_t step = 0;
+        Py_ssize_t slice_length = 0;
+        if (PySlice_GetIndicesEx(
+                    key,
+                    static_cast<Py_ssize_t>(self->bitbuf.len()),
+                    &start,
+                    &stop,
+                    &step,
+                    &slice_length) < 0) {
+            return -1;
+        }
+        if (step != 1) {
+            PyErr_SetString(PyExc_IndexError, "step other that 1 is not supported");
+            return -1;
+        }
+        int pos = static_cast<int>(start);
+        PyObject *slice_width = PyLong_FromSsize_t(slice_length);
+        if (slice_width == nullptr) {
+            return -1;
+        }
+        bool ok = PyBitBuf_set_bits_common(self_obj, pos, slice_width, value_);
+        Py_DECREF(slice_width); // TODO: no this object
+        if (!ok) {
+            return -1;
+        }
+        return 0;
+    }
+    if (PyLong_Check(key)) {
+        int pos = 0;
+        int value = 0;
+        if (!parse_int(key, &pos) || !parse_int(value_, &value)) {
+            return -1;
+        }
+        PyBitBuf_set_bit_common(self_obj, pos, value);
+        return 0;
+    }
+
+    PyErr_SetString(PyExc_TypeError, "bit index must be an int or slice");
+    return -1;
 }
 
-PyBitBuf &PyBitBuf::irshift(const nb::object &bits) {
-    return rshift(bits);
+static PyObject *return_self(PyObject *self) {
+    Py_INCREF(self);
+    return self;
 }
 
-PyBitBuf &PyBitBuf::assign(const nb::object &value_, const nb::object &width_) {
-    auto buf = ExtractedBuffer::extract(value_, width_);
-    bitbuf.assign(buf.buffer, buf.size);
-    return *this;
+PyObject *PyBitBuf_ilshift(PyObject *self_obj, PyObject *arg) {
+    auto *self = PyBitBuf_CAST(self_obj);
+    int bits = 0;
+    if (!parse_int(arg, &bits)) {
+        return nullptr;
+    }
+    if (bits < 0) {
+        PyErr_SetString(PyExc_ValueError, "bits must be non-negative");
+        return nullptr;
+    }
+    if (bits > 0) {
+        self->bitbuf.lshift(static_cast<uint32_t>(bits));
+    }
+    return return_self(self_obj);
 }
 
-PyBitBuf &PyBitBuf::resize(const nb::object &width_) {
-    int width = nb::cast<int>(width_);
-    if (width < 0)
-        throw nb::index_error("bit range out of range"); // TODO: error message
-    bitbuf.resize(width);
-    return *this;
+PyObject *PyBitBuf_irshift(PyObject *self_obj, PyObject *arg) {
+    auto *self = PyBitBuf_CAST(self_obj);
+    int bits = 0;
+    if (!parse_int(arg, &bits)) {
+        return nullptr;
+    }
+    if (bits < 0) {
+        PyErr_SetString(PyExc_ValueError, "bits must be non-negative");
+        return nullptr;
+    }
+    if (bits > 0) {
+        self->bitbuf.rshift(static_cast<uint32_t>(bits));
+    }
+    return return_self(self_obj);
 }
 
-PyBitBuf &PyBitBuf::clear() {
-    bitbuf.clear();
-    return *this;
+PyObject *PyBitBuf_assign(PyObject *self_obj, PyObject *args, PyObject *kwargs) {
+    if (PyBitBuf_init(PyBitBuf_CAST(self_obj), args, kwargs) != 0) {
+        // PyErr_SetString(PyExc_IndexError, "failed to assign value to bitbuf object");
+        return nullptr;
+    }
+    return return_self(self_obj);
 }
 
-nb::int_ PyBitBuf::get_bit(const nb::object &pos_) const {
-    int pos = nb::cast<int>(pos_);
-    if (pos < 0) pos += (int) bitbuf.len();
-    if (pos < 0 || pos >= bitbuf.len())
-        throw nb::index_error("bit range out of range");
-    return nb::int_(bitbuf.get_bit(pos));
+PyObject *PyBitBuf_resize(PyObject *self_obj, PyObject *width_) {
+    int width = 0;
+    if (!parse_int(width_, &width)) {
+        return nullptr;
+    }
+    if (width < 0) {
+        PyErr_SetString(PyExc_IndexError, "bit range out of range");
+        return nullptr;
+    }
+
+    PyBitBuf_CAST(self_obj)->bitbuf.resize(static_cast<uint32_t>(width));
+    return return_self(self_obj);
 }
 
-nb::int_ PyBitBuf::get_bits(const nb::object &pos_, const nb::object &width_) const {
-    int pos = nb::cast<int>(pos_);
-    int width = nb::cast<int>(width_);
-    int end = pos + width;
-    if (width < 0)
-        throw nb::value_error("width must be non-negative");
-    if (pos < 0 || end > bitbuf.len())
-        throw nb::index_error("bit range out of range");
-    if (width == 0) {
-        return nb::int_(0);
+PyObject *PyBitBuf_clear(PyObject *self_obj, PyObject *Py_UNUSED(ignored)) {
+    PyBitBuf_CAST(self_obj)->bitbuf.clear();
+    return return_self(self_obj);
+}
+
+PyObject *PyBitBuf_get_bit(PyObject *self_obj, PyObject *pos_) {
+    int pos = 0;
+    if (!parse_int(pos_, &pos)) {
+        return nullptr;
+    }
+    return PyBitBuf_get_bit_common(self_obj, pos);
+}
+
+PyObject *PyBitBuf_get_bit_common(PyObject *self_obj, int pos) {
+    auto *self = PyBitBuf_CAST(self_obj);
+    if (pos < 0) pos += static_cast<int>(self->bitbuf.len());
+    if (pos < 0 || pos >= static_cast<int>(self->bitbuf.len())) {
+        PyErr_SetString(PyExc_IndexError, "bit range out of range");
+        return nullptr;
+    }
+    return PyLong_FromLong(self->bitbuf.get_bit(pos));
+}
+
+PyObject *PyBitBuf_get_bits(PyObject *self_obj, PyObject *args, PyObject *kwargs) {
+    static const char *kwlist[] = {"pos", "width", nullptr};
+    PyObject *pos_obj = nullptr;
+    PyObject *width_obj = nullptr;
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO:get_bits", const_cast<char **>(kwlist), &pos_obj, &width_obj)) {
+        return nullptr;
+    }
+    int pos = 0;
+    int width = 0;
+    if (!parse_int(pos_obj, &pos) || !parse_int(width_obj, &width)) {
+        return nullptr;
+    }
+    return PyBitBuf_get_bits_common(self_obj, pos, width);
+}
+
+PyObject *PyBitBuf_get_bits_common(PyObject *self_obj, int pos, int width) {
+    auto *self = PyBitBuf_CAST(self_obj);
+    if (width < 0) {
+        PyErr_SetString(PyExc_IndexError, "width must be non-negative");
+        return nullptr;
+    }
+    if (pos < 0 || pos + width > static_cast<int>(self->bitbuf.len())) {
+        PyErr_SetString(PyExc_IndexError, "bit range out of range");
+        return nullptr;
     }
     const auto buffer_size = (width + 63) / 64;
     std::unique_ptr<BitBuf::data_t[]> buf(new BitBuf::data_t[buffer_size]);
-    bitbuf.get_bits(pos, width, buf.get());
-    return nb::int_(PyLong_FromNativeBytes(buf.get(), buffer_size * sizeof(BitBuf::data_t),
-                                           Py_ASNATIVEBYTES_LITTLE_ENDIAN | Py_ASNATIVEBYTES_UNSIGNED_BUFFER));
+    self->bitbuf.get_bits(pos, width, buf.get());
+    return PyLong_FromNativeBytes(buf.get(), buffer_size * sizeof(BitBuf::data_t),
+                                  Py_ASNATIVEBYTES_LITTLE_ENDIAN | Py_ASNATIVEBYTES_UNSIGNED_BUFFER);
 }
 
-nb::bytes PyBitBuf::get_bits_as_bytes(const nb::object &pos_, const nb::object &width_) const {
-    int pos = nb::cast<int>(pos_);
-    int width = nb::cast<int>(width_);
-    int end = pos + width;
-    if (width < 0)
-        throw nb::value_error("width must be non-negative");
-    if (pos < 0 || end > bitbuf.len())
-        throw nb::index_error("bit range out of range");
-    if (width == 0) {
-        return {};
+PyObject *PyBitBuf_get_bits_as_bytes(PyObject *self_obj, PyObject *args, PyObject *kwargs) {
+    auto *self = PyBitBuf_CAST(self_obj);
+    static const char *kwlist[] = {"pos", "width", nullptr};
+    PyObject *pos_obj = Py_None;
+    PyObject *width_obj = Py_None;
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO:get_bits", const_cast<char **>(kwlist), &pos_obj, &width_obj)) {
+        return nullptr;
     }
+    int pos = 0;
+    int width = 0;
+    if (!parse_int(pos_obj, &pos) || !parse_int(width_obj, &width)) {
+        return nullptr;
+    }
+    if (width < 0) {
+        PyErr_SetString(PyExc_IndexError, "width must be non-negative");
+        return nullptr;
+    }
+    if (pos < 0 || pos + width > static_cast<int>(self->bitbuf.len())) {
+        PyErr_SetString(PyExc_IndexError, "bit range out of range");
+        return nullptr;
+    }
+
     const auto buffer_size = (width + 63) / 64;
-    std::unique_ptr<data_t[]> buf(new data_t[buffer_size]);
-    bitbuf.get_bits(pos, width, buf.get());
-    return nb::bytes(PyBytes_FromStringAndSize(reinterpret_cast<const char *>(buf.get()),
-                                               (Py_ssize_t) (buffer_size * sizeof(data_t))));
+    std::unique_ptr<BitBuf::data_t[]> buf(new BitBuf::data_t[buffer_size]);
+    self->bitbuf.get_bits(pos, width, buf.get());
+    return PyBytes_FromStringAndSize(
+            reinterpret_cast<const char *>(buf.get()),
+            (width + 7) / 8
+    );
 }
 
-nb::bytearray PyBitBuf::get_bits_as_bytearray(const nb::object &pos_, const nb::object &width_) const {
-    int pos = nb::cast<int>(pos_);
-    int width = nb::cast<int>(width_);
-    int end = pos + width;
-    if (width < 0)
-        throw nb::value_error("width must be non-negative");
-    if (pos < 0 || end > bitbuf.len())
-        throw nb::index_error("bit range out of range");
-    if (width == 0) {
-        return {};
+PyObject *PyBitBuf_get_bits_as_bytearray(PyObject *self_obj, PyObject *args, PyObject *kwargs) {
+    auto *self = PyBitBuf_CAST(self_obj);
+    static const char *kwlist[] = {"pos", "width", nullptr};
+    PyObject *pos_obj = nullptr;
+    PyObject *width_obj = nullptr;
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO:get_bits", const_cast<char **>(kwlist), &pos_obj, &width_obj)) {
+        return nullptr;
     }
-    nb::bytearray ba{};
-    ba.resize((width + 63) / 64 * sizeof(data_t));
-    bitbuf.get_bits(pos, width, reinterpret_cast<data_t *>(ba.data()));
-    ba.resize((width + 7) / 8);
+    int pos = 0;
+    int width = 0;
+    if (!parse_int(pos_obj, &pos) || !parse_int(width_obj, &width)) {
+        return nullptr;
+    }
+    if (width < 0) {
+        PyErr_SetString(PyExc_IndexError, "width must be non-negative");
+        return nullptr;
+    }
+    if (pos < 0 || pos + width > static_cast<int>(self->bitbuf.len())) {
+        PyErr_SetString(PyExc_IndexError, "bit range out of range");
+        return nullptr;
+    }
+
+    PyObject *ba = PyByteArray_FromStringAndSize(nullptr, 0);
+    if (ba == nullptr) {
+        return nullptr;
+    }
+    uint64_t i = (width + 63) / 64 * sizeof(BitBuf::data_t);
+    if (PyByteArray_Resize(ba, static_cast<Py_ssize_t>(i)) < 0) {
+        Py_DECREF(ba);
+        return nullptr;
+    }
+    self->bitbuf.get_bits(pos, width, reinterpret_cast<BitBuf::data_t *>(PyByteArray_AsString(ba)));
+    if (PyByteArray_Resize(ba, (width + 7) / 8) < 0) {
+        Py_DECREF(ba);
+        return nullptr;
+    }
     return ba;
 }
 
+PyObject *PyBitBuf_slice(PyObject *self_obj, PyObject *args, PyObject *kwargs) {
+    static const char *kwlist[] = {"pos", "width", nullptr};
+    PyObject *pos_obj = nullptr;
+    PyObject *width_obj = nullptr;
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO:slice", const_cast<char **>(kwlist), &pos_obj, &width_obj)) {
+        return nullptr;
+    }
 
-PyBitBuf PyBitBuf::slice(const nb::object &pos_, const nb::object &width_) const {
-    int pos = nb::cast<int>(pos_);
-    int width = nb::cast<int>(width_);
-    if (width < 0)
-        throw nb::value_error("width must be non-negative");
-    if (pos < 0 || pos + width > bitbuf.len())
-        throw nb::index_error("bit range out of range");
+    int pos = 0;
+    int width = 0;
+    if (!parse_int(pos_obj, &pos) || !parse_int(width_obj, &width)) {
+        return nullptr;
+    }
 
-    PyBitBuf buf_slice{};
-    buf_slice.bitbuf = bitbuf.slice(pos, width);
-    return buf_slice;
+    auto *self = PyBitBuf_CAST(self_obj);
+    if (width < 0) {
+        PyErr_SetString(PyExc_IndexError, "width must be non-negative");
+        return nullptr;
+    }
+    if (pos < 0 || pos + width > static_cast<int>(self->bitbuf.len())) {
+        PyErr_SetString(PyExc_IndexError, "bit range out of range");
+        return nullptr;
+    }
+
+    // TODO: directly create from type
+    PyObject *obj = PyObject_CallNoArgs(reinterpret_cast<PyObject *>(&PyBitBufType));
+    if (obj == nullptr) {
+        return nullptr;
+    }
+    PyBitBuf_CAST(obj)->bitbuf = self->bitbuf.slice(static_cast<uint32_t>(pos), static_cast<uint32_t>(width));
+    return obj;
 }
 
-PyBitBuf &PyBitBuf::set_bit(const nb::object &pos_, const nb::object &value_) {
-    int pos = nb::cast<int>(pos_);
-    int value = nb::cast<int>(value_);
-    if (pos < 0) pos += (int) bitbuf.len();
-    if (pos < 0 || pos >= bitbuf.len())
-        throw nb::index_error("bit range out of range");
-    bitbuf.set_bit(pos, value);
-    return *this;
+PyObject *PyBitBuf_set_bit(PyObject *self_obj, PyObject *args, PyObject *kwargs) {
+    static const char *kwlist[] = {"pos", "value", nullptr};
+    PyObject *pos_obj = nullptr;
+    PyObject *value_obj = nullptr;
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|O:set_bit", const_cast<char **>(kwlist), &pos_obj, &value_obj)) {
+        return nullptr;
+    }
+
+    int pos = 0;
+    int value = 0;
+    if (!parse_int(pos_obj, &pos) || !parse_int(value_obj, &value)) {
+        return nullptr;
+    }
+    return PyBitBuf_set_bit_common(self_obj, pos, value);
 }
 
-PyBitBuf &PyBitBuf::set_bits(const nb::object &pos_, const nb::object &value_, const nb::object &width_) {
-    // int | bytes | bytearray | memoryview | bitbuf
-    int pos = nb::cast<int>(pos_); // TODO: signed type?
-    auto buf = ExtractedBuffer::extract(value_, width_); // this function rejects negative width_
-    if (pos < 0 || pos + buf.size > bitbuf.len()) {
+PyObject *PyBitBuf_set_bit_common(PyObject *self_obj, int pos, int value) {
+    auto *self = PyBitBuf_CAST(self_obj);
+    if (pos < 0) {
+        pos += static_cast<int>(self->bitbuf.len());
+    }
+    if (pos < 0 || pos >= static_cast<int>(self->bitbuf.len())) {
+        PyErr_SetString(PyExc_IndexError, "bit range out of range");
+        return nullptr;
+    }
+
+    self->bitbuf.set_bit(static_cast<uint32_t>(pos), static_cast<uint32_t>(value));
+    return return_self(self_obj);
+}
+
+PyObject *PyBitBuf_set_bits(PyObject *self_obj, PyObject *args, PyObject *kwargs) {
+    static const char *kwlist[] = {"pos", "value", "width", nullptr};
+    PyObject *pos_obj = nullptr;
+    PyObject *value = nullptr;
+    PyObject *width = Py_None;
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|OO:set_bits", const_cast<char **>(kwlist), &pos_obj, &value,
+                                     &width)) {
+        return nullptr;
+    }
+
+    int pos = 0;
+    if (!parse_int(pos_obj, &pos)) {
+        return nullptr;
+    }
+    if (!PyBitBuf_set_bits_common(self_obj, pos, width, value)) {
+        return nullptr;
+    }
+    return return_self(self_obj);
+}
+
+bool PyBitBuf_set_bits_common(PyObject *self_obj, int pos, PyObject *width, PyObject *value) {
+    auto *self = PyBitBuf_CAST(self_obj);
+
+    ExtractedBuffer buf{};
+    if (!buf.extract(value, width)) {
+        return false;
+    }
+
+    if (pos < 0 || pos + static_cast<int>(buf.size) > static_cast<int>(self->bitbuf.len())) {
         // TODO: check before ExtractedBuffer::extract
-        throw nb::index_error("bit range out of range");
+        PyErr_SetString(PyExc_IndexError, "bit range out of range");
+        return false;
     }
-    // set_bits_nocheck
-    bitbuf.set_bits(pos, buf.buffer, buf.size);
-    return *this;
+
+    self->bitbuf.set_bits(static_cast<uint32_t>(pos), buf.buffer, buf.size);
+    return true;
 }
 
-PyBitBuf &PyBitBuf::set_ones(const nb::object &pos_, const nb::object &width_) {
-    int pos = nb::cast<int>(pos_); // TODO: signed type?
-    int width = nb::cast<int>(width_);
-    int end = pos + (int) width;
-    if (pos < 0 || end > bitbuf.len()) {
-        throw nb::index_error("bit range out of range");
+PyObject *PyBitBuf_set_ones(PyObject *self_obj, PyObject *args, PyObject *kwargs) {
+    auto *self = PyBitBuf_CAST(self_obj);
+    static const char *kwlist[] = {"pos", "width", nullptr};
+    PyObject *pos_obj = Py_None;
+    PyObject *width_obj = Py_None;
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO:set_ones", const_cast<char **>(kwlist), &pos_obj, &width_obj)) {
+        return nullptr;
     }
-    bitbuf.set_ones(pos, width);
-    return *this;
+
+    int pos = 0;
+    int width = 0;
+    if (!parse_int(pos_obj, &pos) || !parse_int(width_obj, &width)) {
+        return nullptr;
+    }
+
+    if (width < 0) {
+        PyErr_SetString(PyExc_IndexError, "width must be non-negative");
+        return nullptr;
+    }
+    int end = pos + width;
+    if (pos < 0 || end > static_cast<int>(self->bitbuf.len())) {
+        PyErr_SetString(PyExc_IndexError, "bit range out of range");
+        return nullptr;
+    }
+
+    self->bitbuf.set_ones(static_cast<uint32_t>(pos), static_cast<uint32_t>(width));
+    return return_self(self_obj);
 }
 
-PyBitBuf &PyBitBuf::set_zeros(const nb::object &pos_, const nb::object &width_) {
-    int pos = nb::cast<int>(pos_); // TODO: signed type?
-    int width = nb::cast<int>(width_);
-    int end = pos + (int) width;
-    if (pos < 0 || end > bitbuf.len()) {
-        throw nb::index_error("bit range out of range");
+PyObject *PyBitBuf_set_zeros(PyObject *self_obj, PyObject *args, PyObject *kwargs) {
+    static const char *kwlist[] = {"pos", "width", nullptr};
+    PyObject *pos_obj = nullptr;
+    PyObject *width_obj = nullptr;
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO:set_zeros", const_cast<char **>(kwlist), &pos_obj, &width_obj)) {
+        return nullptr;
     }
-    bitbuf.set_zeros(pos, width);
-    return *this;
+
+    int pos = 0;
+    int width = 0;
+    if (!parse_int(pos_obj, &pos) || !parse_int(width_obj, &width)) {
+        return nullptr;
+    }
+    auto *self = PyBitBuf_CAST(self_obj);
+    if (width < 0) {
+        PyErr_SetString(PyExc_IndexError, "width must be non-negative");
+        return nullptr;
+    }
+    if (pos < 0 || pos + width > static_cast<int>(self->bitbuf.len())) {
+        PyErr_SetString(PyExc_IndexError, "bit range out of range");
+        return nullptr;
+    }
+
+    self->bitbuf.set_zeros(static_cast<uint32_t>(pos), static_cast<uint32_t>(width));
+    return return_self(self_obj);
 }
 
-PyBitBuf &PyBitBuf::toggle(const nb::object &pos_, const nb::object &width_) {
-    int pos = nb::cast<int>(pos_); // TODO: signed type?
-    int width = nb::cast<int>(width_);
+PyObject *PyBitBuf_toggle(PyObject *self_obj, PyObject *args, PyObject *kwargs) {
+    auto *self = PyBitBuf_CAST(self_obj);
+    static const char *kwlist[] = {"pos", "width", nullptr};
+    PyObject *pos_obj = Py_None;
+    PyObject *width_obj = Py_None;
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OO:toggle", const_cast<char **>(kwlist), &pos_obj, &width_obj)) {
+        return nullptr;
+    }
+
     // TODO: pos == None
-    int end = pos + (int) width;
-    if (pos < 0 || end > bitbuf.len()) {
-        throw nb::index_error("bit range out of range");
+    int pos = 0;
+    int width = 0;
+    if (pos_obj == Py_None && width_obj == Py_None) {
+        pos = 0;
+        width = (int) self->bitbuf.len();
+    } else if (width_obj == Py_None) {
+        width = 1;
     }
-    bitbuf.toggle(pos, width);
-    return *this;
+    if (pos_obj != Py_None && !parse_int(pos_obj, &pos)) return nullptr;
+    if (width_obj != Py_None && !parse_int(width_obj, &width)) return nullptr;
+
+    if (width < 0) {
+        PyErr_SetString(PyExc_IndexError, "width must be non-negative");
+        return nullptr;
+    }
+    if (pos < 0 || pos + width > static_cast<int>(self->bitbuf.len())) {
+        PyErr_SetString(PyExc_IndexError, "bit range out of range");
+        return nullptr;
+    }
+
+    self->bitbuf.toggle(static_cast<uint32_t>(pos), static_cast<uint32_t>(width));
+    return return_self(self_obj);
 }
 
-PyBitBuf &PyBitBuf::lshift(const nb::object &bits_) {
-    int bits = nb::cast<int>(bits_);
-    if (bits < 0) {
-        throw nb::value_error("bits must be non-negative");
-    }
-    if (bits > 0) {
-        bitbuf.lshift(bits);
-    }
-    return *this;
+PyObject *PyBitBuf_lshift(PyObject *self_obj, PyObject *bits_) {
+    return PyBitBuf_ilshift(self_obj, bits_);
 }
 
-PyBitBuf &PyBitBuf::rshift(const nb::object &bits_) {
-    int bits = nb::cast<int>(bits_);
-    if (bits < 0) {
-        throw nb::value_error("bits must be non-negative");
+PyObject *PyBitBuf_rshift(PyObject *self_obj, PyObject *bits_) {
+    return PyBitBuf_irshift(self_obj, bits_);
+}
+
+PyObject *PyBitBuf_append_low(PyObject *self_obj, PyObject *args, PyObject *kwargs) {
+    static const char *kwlist[] = {"value", "width", nullptr};
+    PyObject *value = nullptr;
+    PyObject *width = Py_None;
+
+    if (!PyArg_ParseTupleAndKeywords(
+            args,
+            kwargs,
+            "|OO:append_low",
+            const_cast<char **>(kwlist),
+            &value,
+            &width)) {
+        return nullptr;
     }
-    if (bits > 0) {
-        bitbuf.rshift(bits);
+
+    ExtractedBuffer buf;
+    if (!buf.extract(value, width)) {
+        return nullptr;
     }
-    return *this;
+    PyBitBuf_CAST(self_obj)->bitbuf.append_low(buf.buffer, buf.size);
+    return return_self(self_obj);
 }
 
-PyBitBuf &PyBitBuf::append_low(const nb::object &value_, const nb::object &width_) {
-    const auto buf = ExtractedBuffer::extract(value_, width_);
-    bitbuf.append_low(buf.buffer, buf.size);
-    return *this;
-}
+PyObject *PyBitBuf_append_high(PyObject *self_obj, PyObject *args, PyObject *kwargs) {
+    static const char *kwlist[] = {"value", "width", nullptr};
+    PyObject *value = nullptr;
+    PyObject *width = Py_None;
 
-PyBitBuf &PyBitBuf::append_high(const nb::object &value_, const nb::object &width_) {
-    const auto buf = ExtractedBuffer::extract(value_, width_);
-    bitbuf.append_high(buf.buffer, buf.size);
-    return *this;
-}
-
-PyBitBuf &PyBitBuf::delete_low(const nb::object &width_) {
-    int width = nb::cast<int>(width_);
-    if (width < 0 || width > bitbuf.len()) {
-        throw nb::index_error("bit range out of range");
+    if (!PyArg_ParseTupleAndKeywords(
+            args,
+            kwargs,
+            "|OO:append_high",
+            const_cast<char **>(kwlist),
+            &value,
+            &width)) {
+        return nullptr;
     }
-    bitbuf.delete_low(width);
-    return *this;
-}
 
-PyBitBuf &PyBitBuf::delete_high(const nb::object &width_) {
-    int width = nb::cast<int>(width_);
-    if (width < 0 || width > bitbuf.len()) {
-        throw nb::index_error("bit range out of range");
+    ExtractedBuffer buf;
+    if (!buf.extract(value, width)) {
+        return nullptr;
     }
-    bitbuf.delete_high(width);
-    return *this;
+    PyBitBuf_CAST(self_obj)->bitbuf.append_high(buf.buffer, buf.size);
+    return return_self(self_obj);
 }
 
-nb::int_ PyBitBuf::pop_low(const nb::object &width_) {
-    int width = nb::cast<int>(width_);
-    if (width < 0 || width > bitbuf.len()) {
-        throw nb::index_error("bit range out of range");
+PyObject *PyBitBuf_delete_low(PyObject *self_obj, PyObject *width_) {
+    auto *self = PyBitBuf_CAST(self_obj);
+    int width = 0;
+    if (!parse_int(width_, &width)) {
+        return nullptr;
+    }
+    if (width < 0 || width > static_cast<int>(self->bitbuf.len())) {
+        PyErr_SetString(PyExc_IndexError, "bit range out of range");
+        return nullptr;
+    }
+
+    self->bitbuf.delete_low(static_cast<uint32_t>(width));
+    return return_self(self_obj);
+}
+
+PyObject *PyBitBuf_delete_high(PyObject *self_obj, PyObject *width_) {
+    auto *self = PyBitBuf_CAST(self_obj);
+    int width = 0;
+    if (!parse_int(width_, &width)) {
+        return nullptr;
+    }
+    if (width < 0 || width > static_cast<int>(self->bitbuf.len())) {
+        PyErr_SetString(PyExc_IndexError, "bit range out of range");
+        return nullptr;
+    }
+
+    self->bitbuf.delete_high(static_cast<uint32_t>(width));
+    return return_self(self_obj);
+}
+
+PyObject *PyBitBuf_pop_low(PyObject *self_obj, PyObject *width_) {
+    auto *self = PyBitBuf_CAST(self_obj);
+    int width = 0;
+    if (!parse_int(width_, &width)) {
+        return nullptr;
+    }
+
+    if (width < 0 || width > static_cast<int>(self->bitbuf.len())) {
+        PyErr_SetString(PyExc_IndexError, "bit range out of range");
+        return nullptr;
     }
     if (width == 0) {
-        return nb::int_(0);
+        return PyLong_FromLong(0);
     }
     if (width <= 64) {
-        // uint64 fast path
-        data_t buf;
-        bitbuf.pop_low(&buf, width);
-        auto obj = PyLong_FromUInt64(buf);
-        return nb::int_(obj);
-    } else {
-        std::unique_ptr<data_t[]> buf(new data_t[(width + 63) / 64]);
-        bitbuf.pop_low(buf.get(), width);
-        // TODO: negative input?
-        auto obj = PyLong_FromNativeBytes(buf.get(), (width + 7) / 8,
-                                          Py_ASNATIVEBYTES_LITTLE_ENDIAN | Py_ASNATIVEBYTES_UNSIGNED_BUFFER);
-        return nb::int_(obj);
+        BitBuf::data_t buf = 0;
+        self->bitbuf.pop_low(&buf, static_cast<uint32_t>(width));
+        return PyLong_FromUnsignedLongLong(buf);
     }
+
+    std::unique_ptr<BitBuf::data_t[]> buf(new BitBuf::data_t[(width + 63) / 64]);
+    self->bitbuf.pop_low(buf.get(), static_cast<uint32_t>(width));
+
+    return PyLong_FromNativeBytes(
+            reinterpret_cast<const char *>(buf.get()),
+            static_cast<Py_ssize_t>((width + 7) / 8),
+            Py_ASNATIVEBYTES_LITTLE_ENDIAN | Py_ASNATIVEBYTES_UNSIGNED_BUFFER);
 }
 
-nb::int_ PyBitBuf::pop_high(const nb::object &width_) {
-    int width = nb::cast<int>(width_);
-    if (width < 0 || width > bitbuf.len()) {
-        throw nb::index_error("bit range out of range");
+PyObject *PyBitBuf_pop_high(PyObject *self_obj, PyObject *width_) {
+    auto *self = PyBitBuf_CAST(self_obj);
+    int width = 0;
+    if (!parse_int(width_, &width)) {
+        return nullptr;
+    }
+
+    if (width < 0 || width > static_cast<int>(self->bitbuf.len())) {
+        PyErr_SetString(PyExc_IndexError, "bit range out of range");
+        return nullptr;
     }
     if (width == 0) {
-        return nb::int_(0);
+        return PyLong_FromLong(0);
     }
     if (width <= 64) {
-        // uint64 fast path
-        data_t buf;
-        bitbuf.pop_high(&buf, width);
-        auto obj = PyLong_FromUInt64(buf);
-        return nb::int_(obj);
-    } else {
-        std::unique_ptr<data_t[]> buf(new data_t[(width + 63) / 64]);
-        bitbuf.pop_high(buf.get(), width);
-        auto obj = PyLong_FromNativeBytes(buf.get(), (width + 7) / 8,
-                                          Py_ASNATIVEBYTES_LITTLE_ENDIAN | Py_ASNATIVEBYTES_UNSIGNED_BUFFER);
-        return nb::int_(obj);
+        BitBuf::data_t buf = 0;
+        self->bitbuf.pop_high(&buf, static_cast<uint32_t>(width));
+        return PyLong_FromUnsignedLongLong(buf);
     }
+
+    std::unique_ptr<BitBuf::data_t[]> buf(new BitBuf::data_t[(width + 63) / 64]);
+    self->bitbuf.pop_high(buf.get(), static_cast<uint32_t>(width));
+
+    return PyLong_FromNativeBytes(
+            reinterpret_cast<const char *>(buf.get()),
+            static_cast<Py_ssize_t>((width + 7) / 8),
+            Py_ASNATIVEBYTES_LITTLE_ENDIAN | Py_ASNATIVEBYTES_UNSIGNED_BUFFER);
 }
 
-nb::bytearray PyBitBuf::as_bytearray() {
-    uint8_t *ptr = bitbuf.normalize_buffer_8b();
-    return nb::bytearray(
-            PyByteArray_FromStringAndSize(reinterpret_cast<const char *>(ptr), (bitbuf.len() + 7) / 8)
+PyObject *PyBitBuf_bytearray(PyObject *self_obj, PyObject *Py_UNUSED(ignored)) {
+    auto *self = PyBitBuf_CAST(self_obj);
+    uint8_t *ptr = self->bitbuf.normalize_buffer_8b();
+    return PyByteArray_FromStringAndSize(
+            reinterpret_cast<const char *>(ptr), static_cast<Py_ssize_t>((self->bitbuf.len() + 7) / 8));
+}
+
+PyObject *PyBitBuf_bytes_method(PyObject *self_obj, PyObject *Py_UNUSED(ignored)) {
+    auto *self = PyBitBuf_CAST(self_obj);
+    uint8_t *ptr = self->bitbuf.normalize_buffer_8b();
+    return PyBytes_FromStringAndSize(
+            reinterpret_cast<const char *>(ptr),
+            static_cast<Py_ssize_t>((self->bitbuf.len() + 7) / 8)
     );
 }
 
-nb::bytes PyBitBuf::bytes() {
-    uint8_t *ptr = bitbuf.normalize_buffer_8b();
-    return nb::bytes(
-            PyBytes_FromStringAndSize(reinterpret_cast<const char *>(ptr), (bitbuf.len() + 7) / 8)
-    );
+PyObject *PyBitBuf_hex(PyObject *self_obj, PyObject *Py_UNUSED(ignored)) {
+    auto *self = PyBitBuf_CAST(self_obj);
+    uint8_t *ptr = self->bitbuf.normalize_buffer_8b();
+    std::string hex = to_hex_string(ptr, self->bitbuf.nbytes());
+    return PyUnicode_FromStringAndSize(hex.data(), static_cast<Py_ssize_t>(hex.size()));
 }
 
-std::string PyBitBuf::hex() {
-    uint8_t *ptr = bitbuf.normalize_buffer_8b();
-    // TODO: clear MSB
-    return to_hex_string(ptr, nbytes());
+PyObject *PyBitBuf_int_method(PyObject *self_obj, PyObject *Py_UNUSED(ignored)) {
+    return PyBitBuf_as_int(self_obj, nullptr);
 }
 
-nb::int_ PyBitBuf::int_value() {
-    uint8_t *ptr = bitbuf.normalize_buffer_8b();
-    return nb::int_(
-            PyLong_FromNativeBytes(reinterpret_cast<const char *>(ptr), nbytes(),
-                                   Py_ASNATIVEBYTES_LITTLE_ENDIAN | Py_ASNATIVEBYTES_UNSIGNED_BUFFER)
-    );
+PyObject *PyBitBuf_get_width(PyObject *self_obj, void *closure) {
+    (void) closure;
+    auto *self = PyBitBuf_CAST(self_obj);
+    return PyLong_FromUnsignedLong(self->bitbuf.width());
 }
 
-uint32_t PyBitBuf::width() const {
-    return bitbuf.width();
+PyObject *PyBitBuf_get_nbytes(PyObject *self_obj, void *closure) {
+    (void) closure;
+    auto *self = PyBitBuf_CAST(self_obj);
+    return PyLong_FromUnsignedLong(self->bitbuf.nbytes());
 }
 
-uint32_t PyBitBuf::nbytes() const {
-    return bitbuf.nbytes();
-}
-
-uint32_t PyBitBuf::get_offset() const {
-    return bitbuf.get_offset();
+PyObject *PyBitBuf_get_offset(PyObject *self_obj, void *closure) {
+    (void) closure;
+    auto *self = PyBitBuf_CAST(self_obj);
+    return PyLong_FromUnsignedLong(self->bitbuf.get_offset());
 }
