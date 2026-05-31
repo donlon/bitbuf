@@ -82,6 +82,12 @@ struct ExtractedBuffer {
         } else {
             width = -1;
         }
+        if (width == 0) {
+            buffer = inline_buffer;
+            size = 0;
+            is_owned = false;
+            return true;
+        }
 
         if (PyBitBuf_Check(value_)) {
             auto *other = PyBitBuf_CAST(value_);
@@ -178,7 +184,7 @@ static PyObject *create_pylong(const void *buffer, uint32_t size) {
 #else
     // TODO: use _PyLong_FromByteArray for version < 3.13 ?
     if (size <= 64) {
-        uint64_t value = reinterpret_cast<const uint64_t *>(buffer)[0] & ((1 << size) - 1);
+        uint64_t value = reinterpret_cast<const uint64_t *>(buffer)[0] & ((1ull << size) - 1);
         return PyLong_FromUnsignedLongLong(value);
     } else {
         PyObject *bytes = PyBytes_FromStringAndSize((const char *) buffer, (size + 7) / 8);
