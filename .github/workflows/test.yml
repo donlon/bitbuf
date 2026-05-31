@@ -7,11 +7,25 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
 
     strategy:
       matrix:
-        python-version: ["3.10", "3.14"]
+        include:
+          - os: ubuntu-latest
+            python-version: "3.10"
+          - os: ubuntu-latest
+            python-version: "3.11"
+          - os: ubuntu-latest
+            python-version: "3.12"
+          - os: ubuntu-latest
+            python-version: "3.13"
+          - os: ubuntu-latest
+            python-version: "3.14"
+          - os: ubuntu-latest
+            python-version: "3.15-dev"
+          - os: windows-latest
+            python-version: "3.14"
 
     steps:
       - name: Checkout code
@@ -27,3 +41,24 @@ jobs:
 
       - name: Run tests
         run: python -m pytest
+
+  cpp-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Configure CMake with C++ tests enabled
+        run: cmake -S . -B build-cpptest -DBITBUF_BUILD_CPP_TESTS=ON
+
+      - name: Build bitbuf_cpp_tests target
+        run: cmake --build build-cpptest --target bitbuf_cpp_tests --config Release
+
+      - name: Run bitbuf_cpp_tests via CTest
+        run: ctest --test-dir build-cpptest --output-on-failure -R bitbuf_cpp_tests
