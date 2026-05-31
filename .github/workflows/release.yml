@@ -13,7 +13,46 @@ jobs:
   test:
     uses: ./.github/workflows/test.yml
 
-  release:
+  build-wheels:
+    runs-on: ${{ matrix.os }}
+    needs: test
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install cibuildwheel
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install cibuildwheel
+
+      - name: Build wheels
+        run: python -m cibuildwheel --output-dir dist
+        env:
+          CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-* cp314-* cp315-*"
+          CIBW_ENABLE: "cpython-prerelease"
+          CIBW_PRERELEASE_PYTHONS: "True"
+          CIBW_SKIP: "pp* *musllinux* *-macosx_*"
+          CIBW_ARCHS_LINUX: "x86_64"
+          CIBW_ARCHS_WINDOWS: "AMD64"
+
+      - name: Upload wheel artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}
+          path: dist/*.whl
+
+  build-sdist:
     runs-on: ubuntu-latest
     needs: test
 
@@ -28,10 +67,41 @@ jobs:
 
       - name: Install build tools
         run: |
-          pip install build
+          python -m pip install --upgrade pip
+          python -m pip install build
 
-      - name: Build package
-        run: python -m build
+      - name: Build sdist
+        run: python -m build --sdist --outdir dist
+
+      - name: Upload sdist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+
+  release:
+    runs-on: ubuntu-latest
+    needs:
+      - build-wheels
+      - build-sdist
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Download wheel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Flatten wheel artifact directories
+        run: |
+          find dist -name "*.whl" -exec mv {} dist/ \;
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3
