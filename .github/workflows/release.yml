@@ -92,14 +92,12 @@ jobs:
         with:
           python-version: "3.14"
 
-      - name: Download wheel artifacts
+      - name: Download release artifacts
         uses: actions/download-artifact@v4
         with:
+          pattern: "*"
+          merge-multiple: true
           path: dist
-
-      - name: Flatten wheel artifact directories
-        run: |
-          find dist -name "*.whl" -exec mv {} dist/ \;
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3
