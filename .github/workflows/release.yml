@@ -39,9 +39,7 @@ jobs:
       - name: Build wheels
         run: python -m cibuildwheel --output-dir dist
         env:
-          CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-* cp314-* cp315-*"
-          CIBW_ENABLE: "cpython-prerelease"
-          CIBW_PRERELEASE_PYTHONS: "True"
+          CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-* cp314-*"
           CIBW_SKIP: "pp* *musllinux* *-macosx_*"
           CIBW_ARCHS_LINUX: "x86_64"
           CIBW_ARCHS_WINDOWS: "AMD64"
