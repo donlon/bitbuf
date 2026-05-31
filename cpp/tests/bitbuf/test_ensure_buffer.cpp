@@ -88,7 +88,7 @@ TEST_CASE_FIXTURE(DoubleWordFixture, "ensure_buffer_s2_move_up") {
     CHECK(b.length == initialLength);
     CHECK(!b.using_heap_buffer());
     CHECK(b.inline_buffer[0] == initialPlaceholder); // old
-    CHECK(b.inline_buffer[1] == initialWord0); // old
+    CHECK(b.inline_buffer[1] == initialWord0);       // old
     CHECK(b.inline_buffer[2] == initialWord0);
     CHECK(b.inline_buffer[3] == initialWord1);
     // CHECK(b.inline_buffer[4] == initialPlaceholder); // old
@@ -101,7 +101,7 @@ TEST_CASE_FIXTURE(DoubleWordFixture, "ensure_buffer_s2_move_down") {
     CHECK(!b.using_heap_buffer());
     CHECK(b.inline_buffer[0] == initialWord0);
     CHECK(b.inline_buffer[1] == initialWord1);
-    CHECK(b.inline_buffer[2] == initialWord1); // old
+    CHECK(b.inline_buffer[2] == initialWord1);       // old
     CHECK(b.inline_buffer[3] == initialPlaceholder); // old
 }
 
@@ -111,7 +111,7 @@ TEST_CASE_FIXTURE(DoubleWordUnalignedFixture, "ensure_buffer_s2_move_up_unaligne
     CHECK(b.length == initialLength + 128);
     CHECK(!b.using_heap_buffer());
     CHECK(b.inline_buffer[0] == initialPlaceholder); // old
-    CHECK(b.inline_buffer[1] == initialWord0); // old
+    CHECK(b.inline_buffer[1] == initialWord0);       // old
     CHECK(b.inline_buffer[2] == initialWord0);
     CHECK(b.inline_buffer[3] == initialWord1);
     // CHECK(b.inline_buffer[4] == initialPlaceholder); // old
@@ -123,7 +123,7 @@ TEST_CASE_FIXTURE(DoubleWordUnalignedFixture, "ensure_buffer_s2_move_up_unaligne
     CHECK(b.length == initialLength + 128);
     CHECK(!b.using_heap_buffer());
     CHECK(b.inline_buffer[0] == initialPlaceholder); // old
-    CHECK(b.inline_buffer[1] == initialWord0); // old
+    CHECK(b.inline_buffer[1] == initialWord0);       // old
     CHECK(b.inline_buffer[2] == initialWord0);
     CHECK(b.inline_buffer[3] == initialWord1);
     // CHECK(b.inline_buffer[4] == initialPlaceholder); // old
@@ -135,8 +135,8 @@ TEST_CASE_FIXTURE(DoubleWordUnalignedFixture, "ensure_buffer_s2_move_up_unaligne
     CHECK(b.length == initialLength);
     CHECK(!b.using_heap_buffer());
     CHECK(b.inline_buffer[0] == initialPlaceholder); // old
-    CHECK(b.inline_buffer[1] == initialWord0); // old
-    CHECK(b.inline_buffer[2] == initialWord1); // old
+    CHECK(b.inline_buffer[1] == initialWord0);       // old
+    CHECK(b.inline_buffer[2] == initialWord1);       // old
     CHECK(b.inline_buffer[3] == initialWord0);
     // CHECK(b.inline_buffer[4] == initialWord1);
     // CHECK(b.inline_buffer[5] == initialPlaceholder); // old
@@ -149,7 +149,7 @@ TEST_CASE_FIXTURE(DoubleWordUnalignedFixture, "ensure_buffer_s2_move_down_unalig
     CHECK(!b.using_heap_buffer());
     CHECK(b.inline_buffer[0] == initialWord0);
     CHECK(b.inline_buffer[1] == initialWord1);
-    CHECK(b.inline_buffer[2] == initialWord1); // old
+    CHECK(b.inline_buffer[2] == initialWord1);       // old
     CHECK(b.inline_buffer[3] == initialPlaceholder); // old
 }
 

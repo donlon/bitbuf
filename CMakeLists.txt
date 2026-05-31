@@ -8,6 +8,27 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(FetchContent)
 
+function(bitbuf_enable_warnings target_name)
+    if (MSVC)
+        target_compile_options(${target_name} PRIVATE
+            /W4
+            /permissive-
+            /wd4146 # disable: unary minus operator applied to unsigned type
+        )
+    elseif (CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+        target_compile_options(${target_name} PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+            -Wconversion
+            -Wsign-conversion
+            -Wshadow
+            -Wno-missing-field-initializers
+            -Wno-parentheses
+        )
+    endif()
+endfunction()
+
 find_package(Python 3.10 REQUIRED COMPONENTS Interpreter Development.Module)
 
 Python_add_library(
@@ -28,6 +49,7 @@ target_include_directories(_bitbuf PRIVATE cpp)
 target_compile_definitions(_bitbuf PRIVATE NOMINMAX Py_NO_LINK_LIB)
 target_compile_options(_bitbuf PRIVATE $<$<CONFIG:Debug>:/U_DEBUG>)
 target_link_libraries(_bitbuf PRIVATE Python::Module)
+bitbuf_enable_warnings(_bitbuf)
 
 add_custom_command(
     TARGET _bitbuf
@@ -69,6 +91,7 @@ if (BITBUF_BUILD_CPP_TESTS)
     target_compile_definitions(bitbuf_cpp_tests PRIVATE NOMINMAX)
     target_compile_definitions(bitbuf_cpp_tests PRIVATE BITBUF_TESTS)
     target_link_libraries(bitbuf_cpp_tests PRIVATE doctest::doctest)
+    bitbuf_enable_warnings(bitbuf_cpp_tests)
 
     add_test(NAME bitbuf_cpp_tests COMMAND bitbuf_cpp_tests)
 endif()

@@ -18,7 +18,7 @@ struct SingleWordFixture {
     const uint64_t initialPlaceholder = 0x1111111111111111ull;
 
     SingleWordFixture() {
-        for (uint64_t &i: b.inline_buffer) i = initialPlaceholder;
+        for (uint64_t &i : b.inline_buffer) i = initialPlaceholder;
         b.inline_buffer[1] = initialWord0;
         b.offset = initialOffset;
         b.length = initialLength;
@@ -34,7 +34,7 @@ struct DoubleWordFixture {
     const uint64_t initialPlaceholder = 0x1111111111111111ull;
 
     DoubleWordFixture() {
-        for (uint64_t &i: b.inline_buffer) i = initialPlaceholder;
+        for (uint64_t &i : b.inline_buffer) i = initialPlaceholder;
         b.inline_buffer[1] = initialWord0;
         b.inline_buffer[2] = initialWord1;
         b.offset = initialOffset;

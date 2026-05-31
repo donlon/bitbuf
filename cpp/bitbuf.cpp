@@ -8,7 +8,7 @@
 BitBuf::BitBuf() : length(0), offset(initialOffset) {}
 
 /// @brief Constructor of the BitBuf object. Initialize data with data in `buffer` and bit count `width`. Data placed in
-///        buffer should be held in LSB first format.
+/// buffer should be held in LSB first format.
 BitBuf::BitBuf(const void *buffer, uint32_t width) {
     assign(buffer, width);
 }
@@ -18,8 +18,7 @@ BitBuf::~BitBuf() {
     if (using_heap_buffer()) delete[] heap_buffer;
 }
 
-BitBuf::BitBuf(const BitBuf &other)
-        : capacity(other.capacity), length(other.length), offset(other.offset) {
+BitBuf::BitBuf(const BitBuf &other) : capacity(other.capacity), length(other.length), offset(other.offset) {
     if (other.using_heap_buffer()) {
         heap_buffer = new data_t[other.capacity];
         memcpy(heap_buffer, other.heap_buffer, other.capacity * sizeof(data_t));
@@ -29,9 +28,7 @@ BitBuf::BitBuf(const BitBuf &other)
 }
 
 BitBuf &BitBuf::operator=(const BitBuf &other) {
-    if (this == &other) {
-        return *this;
-    }
+    if (this == &other) return *this;
 
     if (using_heap_buffer()) {
         delete[] heap_buffer;
@@ -50,8 +47,7 @@ BitBuf &BitBuf::operator=(const BitBuf &other) {
     return *this;
 }
 
-BitBuf::BitBuf(BitBuf &&other) noexcept
-        : capacity(other.capacity), length(other.length), offset(other.offset) {
+BitBuf::BitBuf(BitBuf &&other) noexcept : capacity(other.capacity), length(other.length), offset(other.offset) {
     if (other.using_heap_buffer()) {
         heap_buffer = other.heap_buffer;
         other.heap_buffer = nullptr;
@@ -64,9 +60,7 @@ BitBuf::BitBuf(BitBuf &&other) noexcept
 }
 
 BitBuf &BitBuf::operator=(BitBuf &&other) noexcept {
-    if (this == &other) {
-        return *this;
-    }
+    if (this == &other) return *this;
 
     if (using_heap_buffer()) {
         delete[] heap_buffer;
@@ -106,7 +100,9 @@ BitBuf &BitBuf::assign_zeros(uint32_t width) {
     data_t *buf = ensure_empty_buffer(width);
     if (width == 0) return *this;
     const auto buf_last = buf + (width - 1) / 64;
-    for (auto *ptr = buf; ptr <= buf_last; ptr++) { *ptr = 0; }
+    for (auto *ptr = buf; ptr <= buf_last; ptr++) {
+        *ptr = 0;
+    }
     // memset(buf_start, 0, (buf_end - buf_start) * sizeof(data_t));
     return *this;
 }
@@ -119,7 +115,9 @@ BitBuf &BitBuf::assign_ones(uint32_t width) {
     data_t *buf = ensure_empty_buffer(width);
     if (width == 0) return *this;
     const auto buf_last = buf + (width - 1) / 64;
-    for (auto *ptr = buf; ptr <= buf_last; ptr++) { *ptr = -1ull; }
+    for (auto *ptr = buf; ptr <= buf_last; ptr++) {
+        *ptr = -1ull;
+    }
     return *this;
 }
 
@@ -136,14 +134,16 @@ bool BitBuf::compare(BitBuf &other) {
 
 /// @brief Get bit size of the object.
 /// @return Bit size of the object
-uint32_t BitBuf::len() const { return length; }
+uint32_t BitBuf::len() const {
+    return length;
+}
 
 BitBuf &BitBuf::resize(uint32_t width) {
     auto old_length = length;
     int64_t delta_length = (int64_t) width - (int64_t) length;
     ensure_buffer(0, delta_length);
     if (delta_length > 0) {
-        set_zeros(old_length, delta_length);
+        set_zeros(old_length, static_cast<uint32_t>(delta_length));
     }
     return *this;
 }
@@ -167,8 +167,8 @@ int BitBuf::get_bit(uint32_t pos) const {
 }
 
 /// @brief Get multiple bits starting from @param pos with size @param width from the object. The result bits are placed
-/// in @param dst_buf.
-///        Caller of this function should ensure @param dst_buf can hold at lease `(width + 63) / 64` uint64_t words.
+/// in @param dst_buf. Caller of this function should ensure @param dst_buf can hold at lease `(width + 63) / 64`
+/// uint64_t words.
 /// @param pos Starting position of the bits to get
 /// @param width Size of bits to get
 /// @param dst_buf Destination buffer to hold result bits
@@ -205,7 +205,7 @@ void BitBuf::get_bits_nocheck(uint32_t pos, uint32_t width, data_t *dst_buf) con
         const data_t *ptr = buf_first;
         auto value = *ptr++ >> offset_start;
         uint32_t read_size = 0;
-        for (; read_size < (width & ~63); read_size += 64) {
+        for (; read_size < (width & ~63ul); read_size += 64) {
             data_t src_value = *ptr++;
             *dst_buf++ = value + (src_value << offset_start_c);
             value = src_value >> offset_start;
@@ -278,16 +278,16 @@ void BitBuf::set_bits_nocheck(uint32_t pos, const data_t *src_buffer, uint32_t w
 
     if (buf_start == buf_last) { // TODO: variable naming
         const auto value = *buf_last & ~((1ull << buf_last_offset) - (1ull << buf_start_offset));
-        *buf_last = value | (*src_buffer << buf_start_offset) & ((1ull << buf_last_offset) - 1);
+        *buf_last = value | ((*src_buffer << buf_start_offset) & ((1ull << buf_last_offset) - 1));
     } else if (((offset + pos) % 8) == 0) {
         // Always cross words
         memcpy((uint8_t *) buf + (offset + pos) / 8, src_buffer, width / 8);
         uint32_t last_byte = (offset + pos + width - 1) / 8;
         uint32_t end_offset = (offset + pos + width) % 8;
         if (end_offset != 0) {
-            uint8_t mask = (1 << end_offset) - 1;
-            ((uint8_t *) buf)[last_byte] =
-                    ((uint8_t *) buf)[last_byte] & ~mask | ((uint8_t *) src_buffer)[width / 8] & mask;
+            uint32_t mask = (1u << end_offset) - 1;
+            uint32_t new_data = (((uint8_t *) buf)[last_byte] & ~mask) | (((uint8_t *) src_buffer)[width / 8] & mask);
+            ((uint8_t *) buf)[last_byte] = static_cast<uint8_t>(new_data);
         }
     } else {
         auto low_val = (*buf_start & ((1ull << buf_start_offset) - 1));
@@ -298,13 +298,13 @@ void BitBuf::set_bits_nocheck(uint32_t pos, const data_t *src_buffer, uint32_t w
         }
         // TODO: buf_last_offset == 0
         auto last_mask = (1ull << buf_last_offset) - 1;
-        *buf_last = *buf_last & ~last_mask | low_val & last_mask;
+        *buf_last = (*buf_last & ~last_mask) | (low_val & last_mask);
     }
 }
 
 template<std::size_t... Is>
 constexpr std::array<uint64_t, sizeof...(Is)> make_ones(std::index_sequence<Is...>, uint64_t value) {
-    return {{(Is, value)...}};
+    return {{(Is * 0 + value)...}};
 }
 
 constexpr static const auto ones_buffer = make_ones(std::make_index_sequence<256>{}, -1ull);
@@ -338,13 +338,15 @@ BitBuf &BitBuf::set_zeros(uint32_t pos, uint32_t width) {
 /// @param width Size of bits to toggle
 /// @return The bitbuf object
 BitBuf &BitBuf::toggle(uint32_t pos, uint32_t width) {
-    if (width == 0) return *this; // TODO: testcase
+    if (width == 0) return *this;           // TODO: testcase
     if (pos + width > length) return *this; // nb::index_error("bit range out of range");
     uint64_t toggle_buf[16];
     if (width > sizeof(toggle_buf) * 8) throw std::exception();
     get_bits_nocheck(pos, width, toggle_buf);
     size_t p = (width - 1) / 64;
-    do { toggle_buf[p] ^= -1ull; } while (p--);
+    do {
+        toggle_buf[p] ^= -1ull;
+    } while (p--);
     set_bits_nocheck(pos, toggle_buf, width);
     return *this;
 }
@@ -354,7 +356,8 @@ BitBuf &BitBuf::toggle(uint32_t pos, uint32_t width) {
 /// @param bits How many positions to shift left
 /// @return The bitbuf object
 BitBuf &BitBuf::lshift(uint32_t bits) {
-    if (bits == 0) { return *this; }
+    if (bits == 0) return *this;
+
     if (bits >= length) {
         // Clear to zeros
         assign_zeros(length); // but cap fits
@@ -370,7 +373,8 @@ BitBuf &BitBuf::lshift(uint32_t bits) {
 /// @param bits How many positions to shift right
 /// @return The bitbuf object
 BitBuf &BitBuf::rshift(uint32_t bits) {
-    if (bits == 0) { return *this; }
+    if (bits == 0) return *this;
+
     if (bits >= length) {
         // Clear to zeros
         assign_zeros(length); // but cap fits
@@ -387,7 +391,8 @@ BitBuf &BitBuf::rshift(uint32_t bits) {
 /// @param width Size of the bits to append
 /// @return The bitbuf object
 BitBuf &BitBuf::append_low(const data_t *value, uint32_t width) {
-    if (width == 0) { return *this; }
+    if (width == 0) return *this;
+
     ensure_buffer(-(int64_t) width, width);
     set_bits_nocheck(0, value, width);
     return *this;
@@ -399,7 +404,7 @@ BitBuf &BitBuf::append_low(const data_t *value, uint32_t width) {
 /// @param width Size of the bits to append
 /// @return The bitbuf object
 BitBuf &BitBuf::append_high(const data_t *value, uint32_t width) {
-    if (width == 0) { return *this; }
+    if (width == 0) return *this;
     const auto old_len = length;
     ensure_buffer(0, width);
     set_bits_nocheck(old_len, value, width);
@@ -451,22 +456,29 @@ void BitBuf::pop_low(data_t *dst_buffer, uint32_t width) {
 /// @return
 void BitBuf::pop_high(data_t *dst_buffer, uint32_t width) {
     if (width > length) return; // nb::index_error("bit range out of range");
-    if (width == 0) { return; }
+    if (width == 0) return;
     get_bits_nocheck(length - width, width, dst_buffer);
     length -= width;
 }
 
 /// @brief Get bit size of the object.
 /// @return Bit size of the object
-uint32_t BitBuf::width() const { return length; }
+uint32_t BitBuf::width() const {
+    return length;
+}
 
 /// @brief Get least byte size that is sufficient to hold bits in the object.
 /// @return Least byte size that is sufficient to hold bits in the object
-uint32_t BitBuf::nbytes() const { return (length + 7) / 8; }
+uint32_t BitBuf::nbytes() const {
+    return (length + 7) / 8;
+}
 
-uint32_t BitBuf::get_offset() const { return offset; }
+uint32_t BitBuf::get_offset() const {
+    return offset;
+}
 
-/// @brief Align offset to 8b and clear bits over `offset + length` position to zeros. Tailing bits in the last uint64_t word is cleared.
+/// @brief Align offset to 8b and clear bits over `offset + length` position to zeros. Tailing bits in the last uint64_t
+/// word is cleared.
 /// @return Pointer to aligned offset position at data buffer.
 uint8_t *BitBuf::normalize_buffer_8b() {
     const auto buf = get_buffer();
@@ -508,9 +520,13 @@ uint8_t *BitBuf::normalize_buffer_8b() {
 /// @brief Get if the object is using `heap_buffer` for data. The object is using heap buffer if `capacity` is greater
 ///        than `inlineBufferWords`, otherwise it's using inline buffer.
 /// @return True if the object is using `heap_buffer` for data, false otherwise.
-bool BitBuf::using_heap_buffer() const { return capacity > inlineBufferWords; }
+bool BitBuf::using_heap_buffer() const {
+    return capacity > inlineBufferWords;
+}
 
-const BitBuf::data_t *BitBuf::get_buffer() const { return const_cast<BitBuf *>(this)->get_buffer(); }
+const BitBuf::data_t *BitBuf::get_buffer() const {
+    return const_cast<BitBuf *>(this)->get_buffer();
+}
 
 BitBuf::data_t *BitBuf::get_buffer() {
     if (using_heap_buffer()) {
@@ -543,29 +559,30 @@ BitBuf::data_t *BitBuf::ensure_empty_buffer(uint32_t new_length) {
 ///        to new position while keeps bits aligned at the same position.
 /// @param length Size of data.
 void BitBuf::ensure_buffer(int64_t offset_delta, int64_t length_delta) {
+    // TODO: check if size > 512M
     int64_t new_offset = offset + offset_delta;
-    const uint32_t new_length = length + length_delta; // guarentees length + length_delta >= 0
+    const auto new_length = static_cast<uint32_t>(length + length_delta); // guarentees length + length_delta >= 0
 
     if (new_offset >= 0 && new_offset + new_length <= capacity * 64) {
         // Case I. Buffer space is sufficient for inplace expansion / shrink.
         // Only clearing expanded space to zeros is required.
-        this->offset = new_offset;
+        this->offset = static_cast<uint32_t>(new_offset);
         this->length = new_length;
         return;
     }
     data_t *const src_buf = get_buffer();
     data_t *dst_buf = src_buf;
-    int64_t memmove_delta = 0;
+    int64_t memmove_delta;
     uint32_t new_capacity = capacity;
     if ((new_offset & 63) + new_length <= capacity * 64) {
         // Case II. Buffer size is sufficient but requires moving words.
-        memmove_delta = ((new_offset & 63) - new_offset) / 64;;
+        memmove_delta = ((new_offset & 63) - new_offset) / 64;
         new_offset = new_offset & 63; // TODO: reserve one more word?
     } else {
         // Case III. Allocate new buffer space and move data to new position
         new_offset = initialHeapOffsetWords * 64 + (new_offset & 63);
         memmove_delta = (new_offset - offset_delta) / 64 - offset / 64;
-        new_capacity = (new_offset + new_length + 63) / 64 + 4;
+        new_capacity = static_cast<uint32_t>((new_offset + new_length + 63) / 64 + 4);
         dst_buf = new data_t[new_capacity];
     }
     // II/III Data move: move previous data block to new position
@@ -580,6 +597,6 @@ void BitBuf::ensure_buffer(int64_t offset_delta, int64_t length_delta) {
         this->heap_buffer = dst_buf;
     }
     this->capacity = new_capacity;
-    this->offset = new_offset;
+    this->offset = static_cast<uint32_t>(new_offset);
     this->length = new_length;
 }

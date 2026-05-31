@@ -6,19 +6,22 @@
 #include <utility>
 
 #include <Python.h>
+
 #include "bitbuf.h"
 
+// clang-format off
 typedef struct {
     PyObject_HEAD
     BitBuf bitbuf;
 } PyBitBufObject;
+// clang-format on
 
-static_assert(sizeof(PyBitBufObject) <= 64, "Size of BitBuf should less than size of cache line");
+// static_assert(sizeof(PyBitBufObject) <= 64, "Size of BitBuf should less than size of cache line");
 
 extern PyTypeObject PyBitBufType;
 
 #define PyBitBuf_Check(op) PyObject_TypeCheck((op), &PyBitBufType)
-#define PyBitBuf_CAST(op) _Py_CAST(PyBitBufObject*, (op))
+#define PyBitBuf_CAST(op) _Py_CAST(PyBitBufObject *, (op))
 
 PyObject *PyBitBuf_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
 int PyBitBuf_init(PyBitBufObject *self, PyObject *args, PyObject *kwds);

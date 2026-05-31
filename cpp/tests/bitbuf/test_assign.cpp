@@ -40,8 +40,14 @@ BITBUF_TEST(assign_heap_boundary) {
     CHECK(b.len() == 64);
 
     BitBuf::data_t words[8] = {
-            0x0123456789abcdefull, 0xfedcba9876543210ull, 0xaaaaaaaa55555555ull, 0xcccccccceeeeeeeeull,
-            0x1122334455667788ull, 0xaabbccddeeaabbccull, 0xddeeffddeeffddeeull, 0x2233445566778899ull,
+            0x0123456789abcdefull,
+            0xfedcba9876543210ull,
+            0xaaaaaaaa55555555ull,
+            0xcccccccceeeeeeeeull,
+            0x1122334455667788ull,
+            0xaabbccddeeaabbccull,
+            0xddeeffddeeffddeeull,
+            0x2233445566778899ull,
     };
     b.assign(words, 8 * 64);
     CHECK(b.len() == 8 * 64);
@@ -63,8 +69,7 @@ BITBUF_TEST(assign_ones_heap) {
     b.assign_ones(64 * 8);
     CHECK(b.length == 64 * 8);
     CHECK(b.offset == BitBuf::initialHeapOffset);
-    for (int i = 0; i < 8; i++)
-        CHECK(b.heap_buffer[BitBuf::initialHeapOffsetWords + i] == -1ull);
+    for (unsigned int i = 0; i < 8; i++) CHECK(b.heap_buffer[BitBuf::initialHeapOffsetWords + i] == -1ull);
 }
 
 BITBUF_TEST(assign_zeros_inline) {

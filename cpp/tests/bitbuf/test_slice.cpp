@@ -42,6 +42,7 @@ TEST_CASE_FIXTURE(MultipleWordsFixture, "slice_multiple_words_aligned") {
     CHECK(empty.inline_buffer[1] == initialWord1);
     CHECK(empty.inline_buffer[2] == initialWord2);
 }
+
 TEST_CASE_FIXTURE(MultipleWordsFixture, "slice_multiple_words_unaligned") {
     auto empty = b.slice(12, 128);
     CHECK(empty.offset == 64 + 12);
@@ -50,6 +51,7 @@ TEST_CASE_FIXTURE(MultipleWordsFixture, "slice_multiple_words_unaligned") {
     CHECK(empty.inline_buffer[2] == initialWord1);
     CHECK(empty.inline_buffer[3] == initialWord2);
 }
+
 TEST_CASE_FIXTURE(MultipleWordsFixture, "slice_multiple_words_unaligned_2") {
     auto empty = b.slice(12, 128 - 12);
     CHECK(empty.offset == 64 + 12);
@@ -57,6 +59,7 @@ TEST_CASE_FIXTURE(MultipleWordsFixture, "slice_multiple_words_unaligned_2") {
     CHECK(empty.inline_buffer[1] == initialWord0);
     CHECK(empty.inline_buffer[2] == initialWord1);
 }
+
 TEST_CASE_FIXTURE(MultipleWordsFixture, "slice_multiple_words_unaligned_3") {
     auto empty = b.slice(0, 128 + 12);
     CHECK(empty.offset == 64);

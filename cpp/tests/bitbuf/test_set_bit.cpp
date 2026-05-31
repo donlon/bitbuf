@@ -11,6 +11,7 @@ BITBUF_TEST(set_bit_in_range_and_out_of_range) {
     b.set_bit(8, 1);
     CHECK(b.get_bit(7) == 0);
 }
+
 BITBUF_TEST(set_bit_long) {
     BitBuf b{};
     b.assign_zeros(256);
