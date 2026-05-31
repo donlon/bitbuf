@@ -21,7 +21,7 @@ typedef struct {
 extern PyTypeObject PyBitBufType;
 
 #define PyBitBuf_Check(op) PyObject_TypeCheck((op), &PyBitBufType)
-#define PyBitBuf_CAST(op) _Py_CAST(PyBitBufObject *, (op))
+#define PyBitBuf_CAST(op) (reinterpret_cast<PyBitBufObject *>(op))
 
 PyObject *PyBitBuf_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
 int PyBitBuf_init(PyBitBufObject *self, PyObject *args, PyObject *kwds);

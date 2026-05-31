@@ -5,11 +5,11 @@ __pycache__/
 # Python build artifacts
 .pytest_cache/
 .venv/
+.venv-*/
 venv/
 env/
 ENV/
 dist/
-build/
 *.egg-info/
 .eggs/
 wheels/

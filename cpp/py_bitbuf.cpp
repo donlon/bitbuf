@@ -33,7 +33,9 @@ struct ExtractedBuffer {
     const BitBuf::data_t *buffer = nullptr;
     uint32_t size = 0;
     bool is_owned = false;
-
+#if PY_MINOR_VERSION < 14
+    PyObject *pybytes = nullptr;
+#endif
     explicit ExtractedBuffer() = default;
 
     // Only Move assignment operator is allowed
@@ -41,7 +43,12 @@ struct ExtractedBuffer {
     ExtractedBuffer &operator=(const ExtractedBuffer &other) = delete;
     ExtractedBuffer &operator=(ExtractedBuffer &&other) = delete;
     ExtractedBuffer(ExtractedBuffer &&other) noexcept
-        : buffer(other.buffer), size(other.size), is_owned(other.is_owned) {
+        : buffer(other.buffer), size(other.size), is_owned(other.is_owned)
+#if PY_MINOR_VERSION < 14
+          ,
+          pybytes(other.pybytes)
+#endif
+    {
         other.size = 0;
         other.buffer = nullptr;
         other.is_owned = false;
@@ -49,6 +56,9 @@ struct ExtractedBuffer {
 
     ~ExtractedBuffer() {
         if (is_owned) delete[] buffer;
+#if PY_MINOR_VERSION < 14
+        if (pybytes) Py_DecRef(pybytes);
+#endif
         buffer = nullptr;
         is_owned = false;
     }
@@ -80,6 +90,7 @@ struct ExtractedBuffer {
             return assign_buffer(other->bitbuf.len(), width, (BitBuf::data_t *) buf);
         }
         if (PyLong_Check(value_)) {
+#if PY_MINOR_VERSION >= 14
             Py_ssize_t int_size_ = PyLong_AsNativeBytes(value_, nullptr, 0, Py_ASNATIVEBYTES_LITTLE_ENDIAN);
             if (int_size_ < 0) return false;
             if (int_size_ < width) int_size_ = width;
@@ -87,6 +98,26 @@ struct ExtractedBuffer {
             auto buf = int_size < sizeof(inline_buffer) ? inline_buffer : new uint64_t[(int_size + 7) / 8];
             PyLong_AsNativeBytes(value_, buf, int_size_, Py_ASNATIVEBYTES_LITTLE_ENDIAN);
             return assign_buffer(static_cast<uint32_t>(width), width, buf, buf != inline_buffer);
+#else
+            // TODO: maybe call PyLong_AsLongLongAndOverflow for small numbers
+            Py_ssize_t int_size_ = width;
+            PyObject *bytes = PyObject_CallMethod( //
+                    value_,
+                    "to_bytes",
+                    "ns",
+                    int_size_,
+                    "little");
+            if (!bytes) {
+                PyErr_SetString(PyExc_SystemError, "cannot convert int to buffer");
+                return false;
+            }
+
+            pybytes = bytes;
+            bool result = assign_buffer((uint32_t) PyBytes_GET_SIZE(bytes) * 8,
+                                        width,
+                                        reinterpret_cast<const BitBuf::data_t *>(PyBytes_AsString(bytes)));
+            return result;
+#endif
         } else if (PyBytes_Check(value_)) {
             return assign_buffer((uint32_t) PyBytes_GET_SIZE(value_) * 8,
                                  width,
@@ -102,6 +133,23 @@ struct ExtractedBuffer {
 
         PyErr_SetString(PyExc_TypeError, "value must be a bytes-like object");
         return false;
+    }
+
+    void allocate(uint32_t bit_size) {
+        uint32_t byte_size = (bit_size + 7) / 8;
+        if (is_owned) delete[] buffer;
+        if (byte_size <= sizeof(inline_buffer)) {
+            buffer = inline_buffer;
+            is_owned = false;
+        } else {
+            buffer = new uint64_t[(bit_size + 63) / 64];
+            is_owned = true;
+        }
+        size = bit_size;
+    }
+
+    BitBuf::data_t *get_writable() {
+        return const_cast<BitBuf::data_t *>(buffer);
     }
 
 private:
@@ -122,6 +170,24 @@ private:
     }
 };
 
+static PyObject *create_pylong(const void *buffer, uint32_t size) {
+#if PY_MINOR_VERSION >= 14
+    return PyLong_FromNativeBytes(reinterpret_cast<const char *>(buffer),
+                                  (size + 7) / 8,
+                                  Py_ASNATIVEBYTES_LITTLE_ENDIAN | Py_ASNATIVEBYTES_UNSIGNED_BUFFER);
+#else
+    // TODO: use _PyLong_FromByteArray for version < 3.13 ?
+    if (size <= 64) {
+        uint64_t value = reinterpret_cast<const uint64_t *>(buffer)[0] & ((1 << size) - 1);
+        return PyLong_FromUnsignedLongLong(value);
+    } else {
+        PyObject *bytes = PyBytes_FromStringAndSize((const char *) buffer, (size + 7) / 8);
+        auto obj = PyObject_CallMethod((PyObject *) &PyLong_Type, "from_bytes", "Os", bytes, "little");
+        Py_DecRef(bytes);
+        return obj;
+    }
+#endif
+}
 PyObject *PyBitBuf_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
     (void) args;
     (void) kwds;
@@ -231,19 +297,19 @@ Py_ssize_t PyBitBuf_len(PyObject *self_obj) {
     return static_cast<Py_ssize_t>(self->bitbuf.len()); // TODO: checks all Py_ssize_t
 }
 
-PyObject *PyBitBuf_as_int(PyObject *self_obj, PyObject *Py_UNUSED(ignored)) {
+PyObject *PyBitBuf_as_int(PyObject *self_obj, PyObject *ignored) {
+    (void) ignored;
     auto *self = PyBitBuf_CAST(self_obj);
     uint8_t *ptr = self->bitbuf.normalize_buffer_8b();
-    return PyLong_FromNativeBytes(reinterpret_cast<const char *>(ptr),
-                                  self->bitbuf.nbytes(),
-                                  Py_ASNATIVEBYTES_LITTLE_ENDIAN | Py_ASNATIVEBYTES_UNSIGNED_BUFFER);
+    return create_pylong(ptr, self->bitbuf.len());
 }
 
 PyObject *PyBitBuf_as_index(PyObject *self_obj) {
     return PyBitBuf_as_int(self_obj, nullptr);
 }
 
-PyObject *PyBitBuf_as_bytes(PyObject *self_obj, PyObject *Py_UNUSED(ignored)) {
+PyObject *PyBitBuf_as_bytes(PyObject *self_obj, PyObject *ignored) {
+    (void) ignored;
     return PyBitBuf_bytes_method(self_obj, nullptr);
 }
 
@@ -393,7 +459,8 @@ PyObject *PyBitBuf_resize(PyObject *self_obj, PyObject *width_) {
     return return_self(self_obj);
 }
 
-PyObject *PyBitBuf_clear(PyObject *self_obj, PyObject *Py_UNUSED(ignored)) {
+PyObject *PyBitBuf_clear(PyObject *self_obj, PyObject *ignored) {
+    (void) ignored;
     PyBitBuf_CAST(self_obj)->bitbuf.clear();
     return return_self(self_obj);
 }
@@ -441,12 +508,10 @@ PyObject *PyBitBuf_get_bits_common(PyObject *self_obj, int pos, int width) {
         PyErr_SetString(PyExc_IndexError, "bit range out of range");
         return nullptr;
     }
-    const auto buffer_size = (static_cast<uint32_t>(width) + 63) / 64;
-    std::unique_ptr<BitBuf::data_t[]> buf(new BitBuf::data_t[buffer_size]);
-    self->bitbuf.get_bits(static_cast<uint32_t>(pos), static_cast<uint32_t>(width), buf.get());
-    return PyLong_FromNativeBytes(buf.get(),
-                                  buffer_size * sizeof(BitBuf::data_t),
-                                  Py_ASNATIVEBYTES_LITTLE_ENDIAN | Py_ASNATIVEBYTES_UNSIGNED_BUFFER);
+    ExtractedBuffer buf{};
+    buf.allocate(static_cast<uint32_t>(width));
+    self->bitbuf.get_bits(static_cast<uint32_t>(pos), buf.size, buf.get_writable());
+    return create_pylong(buf.buffer, self->bitbuf.len());
 }
 
 PyObject *PyBitBuf_get_bits_as_bytes(PyObject *self_obj, PyObject *args, PyObject *kwargs) {
@@ -801,12 +866,10 @@ PyObject *PyBitBuf_pop_low(PyObject *self_obj, PyObject *width_) {
         return PyLong_FromUnsignedLongLong(buf);
     }
 
-    std::unique_ptr<BitBuf::data_t[]> buf(new BitBuf::data_t[(static_cast<uint32_t>(width) + 63) / 64]);
-    self->bitbuf.pop_low(buf.get(), static_cast<uint32_t>(width));
-
-    return PyLong_FromNativeBytes(reinterpret_cast<const char *>(buf.get()),
-                                  (static_cast<uint32_t>(width) + 7) / 8,
-                                  Py_ASNATIVEBYTES_LITTLE_ENDIAN | Py_ASNATIVEBYTES_UNSIGNED_BUFFER);
+    ExtractedBuffer buf{};
+    buf.allocate(static_cast<uint32_t>(width));
+    self->bitbuf.pop_low(buf.get_writable(), buf.size);
+    return create_pylong(buf.buffer, self->bitbuf.len());
 }
 
 PyObject *PyBitBuf_pop_high(PyObject *self_obj, PyObject *width_) {
@@ -829,36 +892,38 @@ PyObject *PyBitBuf_pop_high(PyObject *self_obj, PyObject *width_) {
         return PyLong_FromUnsignedLongLong(buf);
     }
 
-    std::unique_ptr<BitBuf::data_t[]> buf(new BitBuf::data_t[(static_cast<uint32_t>(width) + 63) / 64]);
-    self->bitbuf.pop_high(buf.get(), static_cast<uint32_t>(width));
-
-    return PyLong_FromNativeBytes(reinterpret_cast<const char *>(buf.get()),
-                                  (static_cast<uint32_t>(width) + 7) / 8,
-                                  Py_ASNATIVEBYTES_LITTLE_ENDIAN | Py_ASNATIVEBYTES_UNSIGNED_BUFFER);
+    ExtractedBuffer buf{};
+    buf.allocate(static_cast<uint32_t>(width));
+    self->bitbuf.pop_high(buf.get_writable(), buf.size);
+    return create_pylong(buf.buffer, self->bitbuf.len());
 }
 
-PyObject *PyBitBuf_bytearray(PyObject *self_obj, PyObject *Py_UNUSED(ignored)) {
+PyObject *PyBitBuf_bytearray(PyObject *self_obj, PyObject *ignored) {
+    (void) ignored;
     auto *self = PyBitBuf_CAST(self_obj);
     uint8_t *ptr = self->bitbuf.normalize_buffer_8b();
     return PyByteArray_FromStringAndSize(reinterpret_cast<const char *>(ptr),
                                          static_cast<Py_ssize_t>((self->bitbuf.len() + 7) / 8));
 }
 
-PyObject *PyBitBuf_bytes_method(PyObject *self_obj, PyObject *Py_UNUSED(ignored)) {
+PyObject *PyBitBuf_bytes_method(PyObject *self_obj, PyObject *ignored) {
+    (void) ignored;
     auto *self = PyBitBuf_CAST(self_obj);
     uint8_t *ptr = self->bitbuf.normalize_buffer_8b();
     return PyBytes_FromStringAndSize(reinterpret_cast<const char *>(ptr),
                                      static_cast<Py_ssize_t>((self->bitbuf.len() + 7) / 8));
 }
 
-PyObject *PyBitBuf_hex(PyObject *self_obj, PyObject *Py_UNUSED(ignored)) {
+PyObject *PyBitBuf_hex(PyObject *self_obj, PyObject *ignored) {
+    (void) ignored;
     auto *self = PyBitBuf_CAST(self_obj);
     uint8_t *ptr = self->bitbuf.normalize_buffer_8b();
     std::string hex = to_hex_string(ptr, self->bitbuf.nbytes());
     return PyUnicode_FromStringAndSize(hex.data(), static_cast<Py_ssize_t>(hex.size()));
 }
 
-PyObject *PyBitBuf_int_method(PyObject *self_obj, PyObject *Py_UNUSED(ignored)) {
+PyObject *PyBitBuf_int_method(PyObject *self_obj, PyObject *ignored) {
+    (void) ignored;
     return PyBitBuf_as_int(self_obj, nullptr);
 }
 
