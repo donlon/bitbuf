@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 #include "test_common.h"
 
 BITBUF_TEST(append_high_increases_length_and_places_bits_high) {

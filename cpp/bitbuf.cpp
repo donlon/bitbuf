@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 #include "bitbuf.h"
 
 #include <algorithm>

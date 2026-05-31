@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 #include "test_common.h"
 
 TEST_SUITE_BEGIN("delete_high");

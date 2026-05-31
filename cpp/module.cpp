@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 #include "py_bitbuf.h"
 
 #define PYFUNC(function) reinterpret_cast<PyCFunction>(reinterpret_cast<void *>(function))

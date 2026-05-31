@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 #include "py_bitbuf.h"
 
 #include <memory>
