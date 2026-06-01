@@ -11,7 +11,7 @@ bool PyBitBuf_set_bits_common(PyObject *self_obj, int pos, PyObject *width, PyOb
 
 static std::string to_hex_string(const uint8_t *ptr, size_t size) {
     static const char *hex_table = "0123456789abcdef";
-    if (size == 0) return "0";
+    if (size == 0) return "0x0";
     std::string str{"0x"};
     str.reserve(2 * size + 4);
     auto i = size - 1;
@@ -27,6 +27,7 @@ static std::string to_hex_string(const uint8_t *ptr, size_t size) {
             find_nonzero = true;
         }
     } while (i--);
+    if (str.length() == 2) str += '0';
     return str;
 }
 
@@ -325,10 +326,16 @@ PyObject *PyBitBuf_repr(PyObject *self_obj) {
     auto *self = PyBitBuf_CAST(self_obj);
     uint8_t *ptr = self->bitbuf.normalize_buffer_8b();
     std::string hex_value;
-    if (self->bitbuf.len() <= 128) {
-        hex_value = to_hex_string(ptr, self->bitbuf.nbytes());
+    uint32_t len = self->bitbuf.nbytes();
+    if (self->bitbuf.len() > 128) {
+        for (; len; len--) {
+            if (ptr[len - 1]) break;
+        }
+    }
+    if (len <= 16) {
+        hex_value = to_hex_string(ptr, len);
     } else {
-        std::string high_hex = to_hex_string(ptr + self->bitbuf.nbytes() - 8, 8).substr(2);
+        std::string high_hex = to_hex_string(ptr + len - 8, 8).substr(2);
         std::string low_hex = to_hex_string(ptr, 8).substr(2);
         hex_value = "0x" + high_hex + "..." + low_hex;
     }
@@ -519,7 +526,7 @@ PyObject *PyBitBuf_get_bits_common(PyObject *self_obj, int pos, int width) {
     ExtractedBuffer buf{};
     buf.allocate(static_cast<uint32_t>(width));
     self->bitbuf.get_bits(static_cast<uint32_t>(pos), buf.size, buf.get_writable());
-    return create_pylong(buf.buffer, self->bitbuf.len());
+    return create_pylong(buf.buffer, buf.size);
 }
 
 PyObject *PyBitBuf_get_bits_as_bytes(PyObject *self_obj, PyObject *args, PyObject *kwargs) {

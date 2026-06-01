@@ -36,17 +36,25 @@ def test_equal_simple():
 
 
 def test_repr_includes_length_and_hex_value():
+    assert repr(bitbuf()) == "bitbuf(len=0, hex=0x0)"
+    assert repr(bitbuf.zeros(128)) == "bitbuf(len=128, hex=0x0)"
+    assert repr(bitbuf(0x0, 12)) == "bitbuf(len=12, hex=0x0)"
     assert repr(bitbuf(0xABC, 12)) == "bitbuf(len=12, hex=0xabc)"
+    assert repr(bitbuf(0xABC, 1024)) == "bitbuf(len=1024, hex=0xabc)"
+    assert repr(bitbuf(0x1234567890abcdef1234567890abcdef, 128)) \
+           == "bitbuf(len=128, hex=0x1234567890abcdef1234567890abcdef)"
 
 
 def test_repr_abbreviates_very_long_values():
-    buffer = bitbuf((1 << 400) - 1, 400)
+    assert repr(bitbuf(0x1234567890abcdefaa_1122334455667788, 256)) \
+           == "bitbuf(len=256, hex=0x1234567890abcdef...1122334455667788)"
+    assert repr(bitbuf((1 << 400) - 1, 400)) \
+           == "bitbuf(len=400, hex=0xffffffffffffffff...ffffffffffffffff)"
 
-    rendered = repr(buffer)
 
-    assert rendered.startswith("bitbuf(len=400, hex=0x")
-    assert "..." in rendered
-    assert rendered.endswith("ffffffffffffffff)")
+def test_repr_abbreviates_very_long_values_ignore_leading_zeros():
+    buffer = bitbuf(0x12340000abcdefab_aaaabbbb_1122334455667788, 400)
+    assert repr(buffer) == "bitbuf(len=400, hex=0x12340000abcdefab...1122334455667788)"
 
 
 def test_from_int_uses_bit_length_when_width_is_omitted():
@@ -732,6 +740,13 @@ def test_int_method_and_builtin_conversion():
 
     assert buffer.int() == 0b1010
     assert int(buffer) == 0b1010
+
+
+def test_hex_conversion_empty():
+    buffer = bitbuf(0, 12)
+
+    assert buffer.hex() == "0x0"
+    assert hex(buffer) == "0x0"
 
 
 def test_hex_conversion():
