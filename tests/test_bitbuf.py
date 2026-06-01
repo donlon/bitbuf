@@ -561,6 +561,42 @@ def test_append_msb_appends_to_msb_side():
     assert int(buffer) == 0b101_0011
 
 
+def test_iadd_appends_high_for_bytes():
+    buffer = bitbuf(0b0011, 4)
+    original = buffer
+
+    buffer += b"\x05"
+
+    assert buffer is original
+    assert len(buffer) == 12
+    assert int(buffer) == 0x053
+
+
+def test_iadd_appends_high_for_bytearray():
+    buffer = bitbuf(0b0011, 4)
+
+    buffer += bytearray(b"\x05")
+
+    assert len(buffer) == 12
+    assert int(buffer) == 0x053
+
+
+def test_iadd_appends_high_for_bitbuf():
+    buffer = bitbuf(0b0011, 4)
+
+    buffer += bitbuf(0b101, 3)
+
+    assert len(buffer) == 7
+    assert int(buffer) == 0b101_0011
+
+
+def test_iadd_rejects_unsupported_operand_types():
+    buffer = bitbuf(0b0011, 4)
+
+    with pytest.raises(TypeError, match="unsupported operand type"):
+        buffer += 1
+
+
 def test_append_lsb_appends_to_lsb_side():
     buffer = bitbuf(0b0011, 4)
 

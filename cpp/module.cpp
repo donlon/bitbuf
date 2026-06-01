@@ -71,6 +71,7 @@ static PyModuleDef bitbuf_module = {
 PyMODINIT_FUNC PyInit__bitbuf(void) { // NOLINT
     PyBitBuf_number_methods = {};
     PyBitBuf_number_methods.nb_int = PyBitBuf_as_index;
+    PyBitBuf_number_methods.nb_inplace_add = PyBitBuf_iadd;
     PyBitBuf_number_methods.nb_inplace_lshift = PyBitBuf_ilshift;
     PyBitBuf_number_methods.nb_inplace_rshift = PyBitBuf_irshift;
     PyBitBuf_number_methods.nb_index = PyBitBuf_as_index;

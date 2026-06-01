@@ -43,6 +43,7 @@ int PyBitBuf_setitem(PyObject *self, PyObject *key, PyObject *value);
 
 PyObject *PyBitBuf_ilshift(PyObject *self, PyObject *arg);
 PyObject *PyBitBuf_irshift(PyObject *self, PyObject *arg);
+PyObject *PyBitBuf_iadd(PyObject *self, PyObject *arg);
 
 PyObject *PyBitBuf_assign(PyObject *self, PyObject *args, PyObject *kwargs);
 PyObject *PyBitBuf_resize(PyObject *self, PyObject *width_);

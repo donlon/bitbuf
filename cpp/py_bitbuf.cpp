@@ -444,6 +444,21 @@ PyObject *PyBitBuf_irshift(PyObject *self_obj, PyObject *arg) {
     return return_self(self_obj);
 }
 
+PyObject *PyBitBuf_iadd(PyObject *self_obj, PyObject *arg) {
+    if (!(PyBytes_Check(arg) || PyByteArray_Check(arg) || PyBitBuf_Check(arg))) {
+        PyErr_Format(PyExc_TypeError,
+                     "unsupported operand type(s) for +=: 'bitbuf' and '%s'",
+                     Py_TYPE(arg)->tp_name);
+        return nullptr;
+    }
+    ExtractedBuffer buf;
+    if (!buf.extract(arg, Py_None)) {
+        return nullptr;
+    }
+    PyBitBuf_CAST(self_obj)->bitbuf.append_high(buf.buffer, buf.size);
+    return return_self(self_obj);
+}
+
 PyObject *PyBitBuf_assign(PyObject *self_obj, PyObject *args, PyObject *kwargs) {
     if (PyBitBuf_init(PyBitBuf_CAST(self_obj), args, kwargs) != 0) {
         // PyErr_SetString(PyExc_IndexError, "failed to assign value to bitbuf object");
