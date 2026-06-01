@@ -884,7 +884,7 @@ PyObject *PyBitBuf_pop_low(PyObject *self_obj, PyObject *width_) {
     ExtractedBuffer buf{};
     buf.allocate(static_cast<uint32_t>(width));
     self->bitbuf.pop_low(buf.get_writable(), buf.size);
-    return create_pylong(buf.buffer, self->bitbuf.len());
+    return create_pylong(buf.buffer, buf.size);
 }
 
 PyObject *PyBitBuf_pop_high(PyObject *self_obj, PyObject *width_) {
@@ -910,7 +910,7 @@ PyObject *PyBitBuf_pop_high(PyObject *self_obj, PyObject *width_) {
     ExtractedBuffer buf{};
     buf.allocate(static_cast<uint32_t>(width));
     self->bitbuf.pop_high(buf.get_writable(), buf.size);
-    return create_pylong(buf.buffer, self->bitbuf.len());
+    return create_pylong(buf.buffer, buf.size);
 }
 
 PyObject *PyBitBuf_bytearray(PyObject *self_obj, PyObject *ignored) {

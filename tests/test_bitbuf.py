@@ -775,3 +775,11 @@ def test_size_bytes_rounds_up_to_full_bytes():
     assert bitbuf(0, 1).nbytes == 1
     assert bitbuf(0, 8).nbytes == 1
     assert bitbuf(0, 9).nbytes == 2
+
+
+def test_int_conversion_using_correct_size():
+    # this case is used to test a previous bug
+    buffer = bitbuf.ones(8192)
+    assert buffer.get_bits(100, 12) == 0xfff
+    assert buffer.pop_low(12) == 0xfff
+    assert buffer.pop_high(12) == 0xfff
