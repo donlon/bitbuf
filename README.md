@@ -142,12 +142,6 @@ class bitbuf:
     # Create a mutable LSB-first buffer from an int, bytes-like object, or bitbuf.
 
     @classmethod
-    def from_int(cls, data: int, width: int | None = None) -> bitbuf: ...
-    # Build a buffer from an integer, inferring width from bit_length when omitted.
-    @classmethod
-    def from_bytes(cls, data: bytes | bytearray | memoryview, width: int | None = None) -> bitbuf: ...
-    # Build a buffer from little-endian bytes-like data.
-    @classmethod
     def zeros(cls, width: int) -> bitbuf: ...
     # Build a zero-filled buffer with the requested width.
     @classmethod

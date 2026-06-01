@@ -234,14 +234,6 @@ int PyBitBuf_init(PyBitBufObject *self, PyObject *args, PyObject *kwds) {
     return 0;
 }
 
-PyObject *PyBitBuf_from_int(PyObject *cls, PyObject *args, PyObject *kwargs) {
-    return PyObject_Call(cls, args, kwargs);
-}
-
-PyObject *PyBitBuf_from_bytes(PyObject *cls, PyObject *args, PyObject *kwargs) {
-    return PyObject_Call(cls, args, kwargs);
-}
-
 static bool parse_int(PyObject *obj, int *out) {
     long value = PyLong_AsLong(obj);
     if (value == -1 && PyErr_Occurred()) {

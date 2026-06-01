@@ -29,8 +29,6 @@ PyObject *PyBitBuf_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
 int PyBitBuf_init(PyBitBufObject *self, PyObject *args, PyObject *kwds);
 void PyBitBuf_dealloc(PyBitBufObject *self);
 
-PyObject *PyBitBuf_from_int(PyObject *cls, PyObject *args, PyObject *kwargs);
-PyObject *PyBitBuf_from_bytes(PyObject *cls, PyObject *args, PyObject *kwargs);
 PyObject *PyBitBuf_zeros(PyObject *cls, PyObject *width);
 PyObject *PyBitBuf_ones(PyObject *cls, PyObject *width);
 

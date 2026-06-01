@@ -4,19 +4,11 @@ from typing import TypeAlias
 
 InputTypes: TypeAlias = int | bytes | bytearray | memoryview | bitbuf
 
-
 class bitbuf:
     def __init__(self, value: InputTypes = 0, width: int | None = None) -> None: ...
 
     @classmethod
-    def from_int(cls, data: int, width: int | None = None) -> bitbuf: ...
-
-    @classmethod
-    def from_bytes(cls, data: bytes | bytearray | memoryview, width: int | None = None) -> bitbuf: ...
-
-    @classmethod
     def zeros(cls, width: int) -> bitbuf: ...
-
     @classmethod
     def ones(cls, width: int) -> bitbuf: ...
 

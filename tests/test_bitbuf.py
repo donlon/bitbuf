@@ -59,29 +59,36 @@ def test_repr_abbreviates_very_long_values_ignore_leading_zeros():
 
 def test_from_int_uses_bit_length_when_width_is_omitted():
     with pytest.raises(ValueError, match="width is not specified for int data"):
-        buffer = bitbuf.from_int(0b10010)
+        buffer = bitbuf(0b10010)  # was bitbuf.from_int
 
         assert len(buffer) == 5
         assert int(buffer) == 0b10010
 
 
 def test_from_int_accepts_explicit_width_and_trims():
-    buffer = bitbuf.from_int(0b11110000, width=4)
+    buffer = bitbuf(0b11110011, width=4)  # was bitbuf.from_int
 
     assert len(buffer) == 4
-    assert int(buffer) == 0
+    assert int(buffer) == 0b0011
 
 
 def test_from_bytes_uses_little_endian_order():
-    buffer = bitbuf.from_bytes(b"\x34\x12")
+    buffer = bitbuf(b"\x34\x12")  # was bitbuf.from_bytes
 
     assert len(buffer) == 16
     assert int(buffer) == 0x1234
 
 
+def test_constructor_truncate_unused_bits():
+    buffer = bitbuf(b"\x34\x12", width=12)
+
+    assert len(buffer) == 12
+    assert int(buffer) == 0x234
+
+
 def test_from_bytes_accepts_bytearray_and_memoryview():
-    from_bytearray = bitbuf.from_bytes(bytearray(b"\x34\x12"))
-    from_memoryview = bitbuf.from_bytes(memoryview(b"\x34\x12"))
+    from_bytearray = bitbuf(bytearray(b"\x34\x12"))  # was bitbuf.from_bytes
+    from_memoryview = bitbuf(memoryview(b"\x34\x12"))  # was bitbuf.from_bytes
 
     assert int(from_bytearray) == 0x1234
     assert int(from_memoryview) == 0x1234
