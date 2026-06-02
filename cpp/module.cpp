@@ -14,6 +14,8 @@ static PyMethodDef PyBitBuf_methods[] = {
         {"__int__",               PYFUNC(PyBitBuf_as_int),                METH_NOARGS,                  nullptr},
         {"__index__",             PYFUNC(PyBitBuf_as_int),                METH_NOARGS,                  nullptr},
         {"__bytes__",             PYFUNC(PyBitBuf_as_bytes),              METH_NOARGS,                  nullptr},
+        {"__getstate__",          PYFUNC(PyBitBuf_getstate),              METH_NOARGS,                  nullptr},
+        {"__setstate__",          PYFUNC(PyBitBuf_setstate),              METH_O,                       nullptr},
         /* Class methods */
         {"assign",                PYFUNC(PyBitBuf_assign),                METH_VARARGS | METH_KEYWORDS, nullptr},
         {"resize",                PYFUNC(PyBitBuf_resize),                METH_O,                       nullptr},
@@ -84,7 +86,7 @@ PyMODINIT_FUNC PyInit__bitbuf(void) { // NOLINT
     PyBitBuf_mapping_methods.mp_subscript = PyBitBuf_getitem;
     PyBitBuf_mapping_methods.mp_ass_subscript = PyBitBuf_setitem;
 
-    PyBitBufType.tp_name = "_bitbuf.bitbuf";
+    PyBitBufType.tp_name = "bitbuf.bitbuf";
     PyBitBufType.tp_basicsize = sizeof(PyBitBufObject);
     PyBitBufType.tp_itemsize = 0;
     PyBitBufType.tp_dealloc = (destructor) PyBitBuf_dealloc;

@@ -37,6 +37,8 @@ Py_ssize_t PyBitBuf_len(PyObject *self);
 PyObject *PyBitBuf_as_int(PyObject *self, PyObject *Py_UNUSED(ignored));
 PyObject *PyBitBuf_as_index(PyObject *self);
 PyObject *PyBitBuf_as_bytes(PyObject *self, PyObject *Py_UNUSED(ignored));
+PyObject *PyBitBuf_getstate(PyObject *self);
+PyObject *PyBitBuf_setstate(PyObject *self, PyObject *state);
 PyObject *PyBitBuf_repr(PyObject *self);
 PyObject *PyBitBuf_getitem(PyObject *self, PyObject *key);
 int PyBitBuf_setitem(PyObject *self, PyObject *key, PyObject *value);
