@@ -518,6 +518,15 @@ PyObject *PyBitBuf_clear(PyObject *self_obj, PyObject *ignored) {
     return return_self(self_obj);
 }
 
+PyObject *PyBitBuf_clone(PyObject *self_obj) {
+    PyObject *obj = PyObject_CallNoArgs(reinterpret_cast<PyObject *>(&PyBitBufType));
+    if (obj == nullptr) {
+        return nullptr;
+    }
+    PyBitBuf_CAST(obj)->bitbuf = PyBitBuf_CAST(self_obj)->bitbuf;
+    return obj;
+}
+
 PyObject *PyBitBuf_get_bit(PyObject *self_obj, PyObject *pos_) {
     int pos = 0;
     if (!parse_int(pos_, &pos)) {

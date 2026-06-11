@@ -50,6 +50,7 @@ PyObject *PyBitBuf_iadd(PyObject *self, PyObject *arg);
 PyObject *PyBitBuf_assign(PyObject *self, PyObject *args, PyObject *kwargs);
 PyObject *PyBitBuf_resize(PyObject *self, PyObject *width_);
 PyObject *PyBitBuf_clear(PyObject *self, PyObject *Py_UNUSED(ignored));
+PyObject *PyBitBuf_clone(PyObject *self);
 PyObject *PyBitBuf_get_bit(PyObject *self, PyObject *pos_);
 PyObject *PyBitBuf_get_bits(PyObject *self, PyObject *args, PyObject *kwargs);
 PyObject *PyBitBuf_get_bits_as_bytes(PyObject *self, PyObject *args, PyObject *kwargs);

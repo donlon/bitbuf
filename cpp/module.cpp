@@ -20,6 +20,7 @@ static PyMethodDef PyBitBuf_methods[] = {
         {"assign",                PYFUNC(PyBitBuf_assign),                METH_VARARGS | METH_KEYWORDS, nullptr},
         {"resize",                PYFUNC(PyBitBuf_resize),                METH_O,                       nullptr},
         {"clear",                 PYFUNC(PyBitBuf_clear),                 METH_NOARGS,                  "Clear"},
+        {"clone",                 PYFUNC(PyBitBuf_clone),                 METH_NOARGS,                  nullptr},
         {"get_bit",               PYFUNC(PyBitBuf_get_bit),               METH_O,                       nullptr},
         {"get_bits",              PYFUNC(PyBitBuf_get_bits),              METH_VARARGS | METH_KEYWORDS, nullptr},
         {"get_bits_as_bytes",     PYFUNC(PyBitBuf_get_bits_as_bytes),     METH_VARARGS | METH_KEYWORDS, nullptr},

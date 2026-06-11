@@ -446,6 +446,35 @@ def test_clear_keeps_width_and_resets_bits():
     # assert buffer.offset == 0
 
 
+def test_clone_returns_distinct_copy_with_same_content():
+    original = bitbuf(0xABC, 12)
+    copied = original.clone()
+
+    assert isinstance(copied, bitbuf)
+    assert copied is not original
+    assert copied.width == original.width
+    assert int(copied) == int(original)
+
+
+def test_clone_is_independent_from_original():
+    original = bitbuf(0xABC, 12)
+    copied = original.clone()
+
+    copied.set_bit(0, 1)
+
+    assert int(copied) != int(original)
+    assert int(original) == 0xABC
+
+
+def test_clone_can_be_chained_with_mutating_methods():
+    original = bitbuf(0b1010, 4)
+
+    cloned = original.clone().append_high(0b11, 2)
+
+    assert int(original) == 0b1010
+    assert int(cloned) == 0b11_1010
+
+
 def test_toggle_flips_bits_and_keeps_width():
     buffer = bitbuf(0b1010, 4)
 
