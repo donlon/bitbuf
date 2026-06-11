@@ -56,6 +56,7 @@ PyObject *PyBitBuf_get_bits(PyObject *self, PyObject *args, PyObject *kwargs);
 PyObject *PyBitBuf_get_bits_as_bytes(PyObject *self, PyObject *args, PyObject *kwargs);
 PyObject *PyBitBuf_get_bits_as_bytearray(PyObject *self, PyObject *args, PyObject *kwargs);
 PyObject *PyBitBuf_slice(PyObject *self, PyObject *args, PyObject *kwargs);
+PyObject *PyBitBuf_clear_bit(PyObject *self, PyObject *pos_);
 PyObject *PyBitBuf_set_bit(PyObject *self, PyObject *args, PyObject *kwargs);
 PyObject *PyBitBuf_set_bits(PyObject *self, PyObject *args, PyObject *kwargs);
 PyObject *PyBitBuf_set_ones(PyObject *self, PyObject *args, PyObject *kwargs);

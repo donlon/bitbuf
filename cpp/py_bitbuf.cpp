@@ -678,6 +678,14 @@ PyObject *PyBitBuf_slice(PyObject *self_obj, PyObject *args, PyObject *kwargs) {
     return obj;
 }
 
+PyObject *PyBitBuf_clear_bit(PyObject *self_obj, PyObject *pos_) {
+    int pos = 0;
+    if (!parse_int(pos_, &pos)) {
+        return nullptr;
+    }
+    return PyBitBuf_set_bit_common(self_obj, pos, 0);
+}
+
 PyObject *PyBitBuf_set_bit(PyObject *self_obj, PyObject *args, PyObject *kwargs) {
     static const char *kwlist[] = {"pos", "value", nullptr};
     PyObject *pos_obj = nullptr;

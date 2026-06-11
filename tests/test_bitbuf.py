@@ -156,6 +156,32 @@ def test_set_bit_sets_and_clears_one_bit():
     assert int(buffer) == 0
 
 
+def test_clear_bit_clears_one_bit():
+    buffer = bitbuf(0b1111, 4)
+
+    returned = buffer.clear_bit(2)
+
+    assert returned is buffer
+    assert int(buffer) == 0b1011
+
+
+def test_clear_bit_supports_negative_indexing():
+    buffer = bitbuf(0b1111, 4)
+
+    buffer.clear_bit(-1)
+
+    assert int(buffer) == 0b0111
+
+
+def test_clear_bit_rejects_out_of_range_positions():
+    buffer = bitbuf(0, 1)
+
+    with pytest.raises(IndexError):
+        buffer.clear_bit(-2)
+    with pytest.raises(IndexError):
+        buffer.clear_bit(1)
+
+
 def test_negative_indexing_sets_from_msb_side():
     buffer = bitbuf(0, 4)
 

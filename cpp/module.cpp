@@ -26,6 +26,7 @@ static PyMethodDef PyBitBuf_methods[] = {
         {"get_bits_as_bytes",     PYFUNC(PyBitBuf_get_bits_as_bytes),     METH_VARARGS | METH_KEYWORDS, nullptr},
         {"get_bits_as_bytearray", PYFUNC(PyBitBuf_get_bits_as_bytearray), METH_VARARGS | METH_KEYWORDS, nullptr},
         {"slice",                 PYFUNC(PyBitBuf_slice),                 METH_VARARGS | METH_KEYWORDS, nullptr},
+        {"clear_bit",             PYFUNC(PyBitBuf_clear_bit),             METH_O,                       nullptr},
         {"set_bit",               PYFUNC(PyBitBuf_set_bit),               METH_VARARGS | METH_KEYWORDS, nullptr},
         {"set_bits",              PYFUNC(PyBitBuf_set_bits),              METH_VARARGS | METH_KEYWORDS, nullptr},
         {"set_ones",              PYFUNC(PyBitBuf_set_ones),              METH_VARARGS | METH_KEYWORDS, nullptr},
