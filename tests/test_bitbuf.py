@@ -792,10 +792,19 @@ def test_delete_rejects_invalid_widths():
         buffer.delete_high(-1)
     with pytest.raises(IndexError):
         buffer.delete_low(-1)
-    with pytest.raises(IndexError):
-        buffer.delete_high(5)
-    with pytest.raises(IndexError):
-        buffer.delete_low(5)
+
+
+def test_delete_width_bigger_than_length_clears_buffer():
+    high = bitbuf(0b1010, 4)
+    low = bitbuf(0b1010, 4)
+
+    high.delete_high(999)
+    low.delete_low(999)
+
+    assert len(high) == 0
+    assert int(high) == 0
+    assert len(low) == 0
+    assert int(low) == 0
 
 
 def test_pop_high_removes_and_returns_lsb_aligned_value():

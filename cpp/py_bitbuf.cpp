@@ -893,7 +893,7 @@ PyObject *PyBitBuf_delete_low(PyObject *self_obj, PyObject *width_) {
     if (!parse_int(width_, &width)) {
         return nullptr;
     }
-    if (width < 0 || width > static_cast<int>(self->bitbuf.len())) {
+    if (width < 0) {
         PyErr_SetString(PyExc_IndexError, "bit range out of range");
         return nullptr;
     }
@@ -908,7 +908,7 @@ PyObject *PyBitBuf_delete_high(PyObject *self_obj, PyObject *width_) {
     if (!parse_int(width_, &width)) {
         return nullptr;
     }
-    if (width < 0 || width > static_cast<int>(self->bitbuf.len())) {
+    if (width < 0) {
         PyErr_SetString(PyExc_IndexError, "bit range out of range");
         return nullptr;
     }
