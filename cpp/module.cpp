@@ -4,12 +4,13 @@
 
 #define PYFUNC(function) reinterpret_cast<PyCFunction>(reinterpret_cast<void *>(function))
 
-// #define METH_CLASS_VA (METH_VARARGS | METH_KEYWORDS | METH_CLASS)
+#define METH_CLASS_VA (METH_VARARGS | METH_KEYWORDS | METH_CLASS)
 
 static PyMethodDef PyBitBuf_methods[] = {
         /* Static methods */
         {"zeros",                 PYFUNC(PyBitBuf_zeros),                 METH_CLASS | METH_O,          nullptr},
         {"ones",                  PYFUNC(PyBitBuf_ones),                  METH_CLASS | METH_O,          nullptr},
+        {"from_buffer",           PYFUNC(PyBitBuf_from_buffer),           METH_CLASS_VA,                nullptr},
         /* Builtin methods */
         {"__int__",               PYFUNC(PyBitBuf_as_int),                METH_NOARGS,                  nullptr},
         {"__index__",             PYFUNC(PyBitBuf_as_int),                METH_NOARGS,                  nullptr},

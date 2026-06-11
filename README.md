@@ -147,6 +147,9 @@ class bitbuf:
     @classmethod
     def ones(cls, width: int) -> bitbuf: ...
     # Build a one-filled buffer with the requested width.
+    @classmethod
+    def from_buffer(cls, buffer: InputTypes, offset: int, size: int) -> bitbuf: ...
+    # Build a buffer from a bit range in a bytes-like source.
 
     def __eq__(self, other): ...
     # Check if bitbuf object is the same as another.

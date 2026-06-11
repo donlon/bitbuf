@@ -31,6 +31,7 @@ void PyBitBuf_dealloc(PyBitBufObject *self);
 
 PyObject *PyBitBuf_zeros(PyObject *cls, PyObject *width);
 PyObject *PyBitBuf_ones(PyObject *cls, PyObject *width);
+PyObject *PyBitBuf_from_buffer(PyObject *cls, PyObject *args, PyObject *kwargs);
 
 PyObject *PyBitBuf_richcompare(PyObject *self, PyObject *other, int op);
 Py_ssize_t PyBitBuf_len(PyObject *self);

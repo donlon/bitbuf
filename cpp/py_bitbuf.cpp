@@ -279,6 +279,73 @@ PyObject *PyBitBuf_ones(PyObject *cls, PyObject *width_) {
     return obj;
 }
 
+PyObject *PyBitBuf_from_buffer(PyObject *cls, PyObject *args, PyObject *kwargs) {
+    static const char *kwlist[] = {"buffer", "offset", "size", nullptr};
+    PyObject *value = nullptr;
+    PyObject *offset_obj = nullptr;
+    PyObject *size_obj = nullptr;
+    if (!PyArg_ParseTupleAndKeywords(args,
+                                     kwargs,
+                                     "OOO:from_buffer",
+                                     const_cast<char **>(kwlist),
+                                     &value,
+                                     &offset_obj,
+                                     &size_obj)) {
+        return nullptr;
+    }
+
+    Py_ssize_t offset = PyLong_AsSsize_t(offset_obj);
+    if (offset == -1 && PyErr_Occurred()) {
+        return nullptr;
+    }
+    Py_ssize_t size = PyLong_AsSsize_t(size_obj);
+    if (size == -1 && PyErr_Occurred()) {
+        return nullptr;
+    }
+    if (offset < 0 || size < 0) {
+        PyErr_SetString(PyExc_ValueError, "offset and size must be non-negative");
+        return nullptr;
+    }
+
+    ExtractedBuffer full_buf{};
+    if (!full_buf.extract(value, Py_None)) {
+        return nullptr;
+    }
+
+    const Py_ssize_t total_bits = static_cast<Py_ssize_t>(full_buf.size);
+    if (offset > total_bits || size > total_bits - offset) {
+        PyErr_SetString(PyExc_IndexError, "bit range out of range");
+        return nullptr;
+    }
+    if (size > static_cast<Py_ssize_t>(UINT32_MAX)) {
+        PyErr_SetString(PyExc_OverflowError, "size is too large");
+        return nullptr;
+    }
+
+    PyObject *obj = PyObject_CallNoArgs(cls);
+    if (obj == nullptr) {
+        return nullptr;
+    }
+
+    if (size == 0) {
+        return obj;
+    }
+
+    const Py_ssize_t first_byte = offset / 8;
+    const Py_ssize_t unaligned_bits = offset % 8;
+    const uint32_t assign_size = static_cast<uint32_t>(size + unaligned_bits);
+    const auto *ptr = reinterpret_cast<const BitBuf::data_t *>(reinterpret_cast<const uint8_t *>(full_buf.buffer) + first_byte);
+
+    auto *self = PyBitBuf_CAST(obj);
+    self->bitbuf.assign(ptr, assign_size);
+    if (unaligned_bits > 0) {
+        self->bitbuf.delete_low(static_cast<uint32_t>(unaligned_bits));
+    }
+    self->bitbuf.resize(static_cast<uint32_t>(size));
+
+    return obj;
+}
+
 PyObject *PyBitBuf_richcompare(PyObject *self_obj, PyObject *other_obj, int op) {
     if (op != Py_EQ && op != Py_NE) {
         Py_RETURN_NOTIMPLEMENTED;

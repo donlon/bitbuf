@@ -94,6 +94,51 @@ def test_from_bytes_accepts_bytearray_and_memoryview():
     assert int(from_memoryview) == 0x1234
 
 
+def test_from_buffer_extracts_aligned_range():
+    buffer = bitbuf.from_buffer(b"\x34\x12\xAB", 8, 8)
+
+    assert len(buffer) == 8
+    assert int(buffer) == 0x12
+
+
+def test_from_buffer_extracts_unaligned_range():
+    buffer = bitbuf.from_buffer(b"\x34\x12", 4, 8)
+
+    assert len(buffer) == 8
+    assert int(buffer) == 0x23
+
+
+def test_from_buffer_accepts_memoryview_and_bytearray():
+    source = bytearray(b"\x34\x12")
+
+    from_bytearray = bitbuf.from_buffer(source, 0, 16)
+    from_memoryview = bitbuf.from_buffer(memoryview(source), 0, 16)
+
+    assert int(from_bytearray) == 0x1234
+    assert int(from_memoryview) == 0x1234
+
+
+def test_from_buffer_zero_size_returns_empty_buffer():
+    buffer = bitbuf.from_buffer(b"\x34\x12", 3, 0)
+
+    assert len(buffer) == 0
+    assert int(buffer) == 0
+
+
+def test_from_buffer_rejects_invalid_ranges():
+    with pytest.raises(IndexError, match="bit range out of range"):
+        bitbuf.from_buffer(b"\x34\x12", 20, 1)
+    with pytest.raises(IndexError, match="bit range out of range"):
+        bitbuf.from_buffer(b"\x34\x12", 15, 2)
+
+
+def test_from_buffer_rejects_negative_offset_or_size():
+    with pytest.raises(ValueError, match="offset and size must be non-negative"):
+        bitbuf.from_buffer(b"\x34\x12", -1, 4)
+    with pytest.raises(ValueError, match="offset and size must be non-negative"):
+        bitbuf.from_buffer(b"\x34\x12", 0, -1)
+
+
 def test_bytearray_iadd_accepts_bitbuf():
     data = bytearray(b"\xAA")
 
