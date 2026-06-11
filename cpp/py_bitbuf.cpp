@@ -679,7 +679,16 @@ PyObject *PyBitBuf_set_bit(PyObject *self_obj, PyObject *args, PyObject *kwargs)
 
     int pos = 0;
     int value = 0;
-    if (!parse_int(pos_obj, &pos) || !parse_int(value_obj, &value)) {
+    if (!parse_int(pos_obj, &pos)) {
+        return nullptr;
+    }
+    if(!value_obj) {
+        value = 1;
+    } else if (!parse_int(value_obj, &value)) {
+        return nullptr;
+    }
+    if (value != 0 && value != 1){
+        PyErr_SetString(PyExc_ValueError, "value should be either 0 or 1");
         return nullptr;
     }
     return PyBitBuf_set_bit_common(self_obj, pos, value);
@@ -705,7 +714,7 @@ PyObject *PyBitBuf_set_bits(PyObject *self_obj, PyObject *args, PyObject *kwargs
     PyObject *value = nullptr;
     PyObject *width = Py_None;
     if (!PyArg_ParseTupleAndKeywords(
-                args, kwargs, "O|OO:set_bits", const_cast<char **>(kwlist), &pos_obj, &value, &width)) {
+                args, kwargs, "OO|O:set_bits", const_cast<char **>(kwlist), &pos_obj, &value, &width)) {
         return nullptr;
     }
 
@@ -840,7 +849,7 @@ PyObject *PyBitBuf_append_low(PyObject *self_obj, PyObject *args, PyObject *kwar
     PyObject *value = nullptr;
     PyObject *width = Py_None;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OO:append_low", const_cast<char **>(kwlist), &value, &width)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|O:append_low", const_cast<char **>(kwlist), &value, &width)) {
         return nullptr;
     }
 
@@ -857,7 +866,7 @@ PyObject *PyBitBuf_append_high(PyObject *self_obj, PyObject *args, PyObject *kwa
     PyObject *value = nullptr;
     PyObject *width = Py_None;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OO:append_high", const_cast<char **>(kwlist), &value, &width)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|O:append_high", const_cast<char **>(kwlist), &value, &width)) {
         return nullptr;
     }
 

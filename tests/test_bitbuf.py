@@ -131,6 +131,21 @@ def test_get_bit_rejects_out_of_range_positions():
         buffer.get_bit(1)
 
 
+def test_set_bit_default_value():
+    buffer = bitbuf(0, 4)
+
+    buffer.set_bit(2)
+
+    assert int(buffer) == 0b0100
+
+
+def test_set_bit_invalid_value():
+    buffer = bitbuf(0, 4)
+
+    with pytest.raises(ValueError):
+        buffer.set_bit(2, 100)
+
+
 def test_set_bit_sets_and_clears_one_bit():
     buffer = bitbuf(0, 4)
 
@@ -148,14 +163,6 @@ def test_negative_indexing_sets_from_msb_side():
     buffer[-4] = 1
 
     assert int(buffer) == 0b1001
-
-
-def test_set_bit_truncates_nonzero_values_to_one_bit():
-    buffer = bitbuf(0, 4)
-
-    buffer.set_bit(0, 3)
-
-    assert int(buffer) == 1
 
 
 def test_get_bits_returns_lsb_aligned_field():
@@ -256,6 +263,19 @@ def test_set_ones_and_zeros_compensate_internal_offset():
 
     # assert buffer.offset == 5
     assert int(buffer) == expected
+
+
+def test_set_bits_invalid_args():
+    buffer = bitbuf(0b1111_0000, 8)
+
+    with pytest.raises(Exception):
+        buffer.set_bits(2)
+
+
+def test_set_bits_unwided_value():
+    buffer = bitbuf(0b1111_0000, 8)
+    with pytest.raises(ValueError, match="not specified"):
+        buffer.set_bits(2, 10)
 
 
 def test_set_bits_replaces_selected_field():
@@ -595,6 +615,19 @@ def test_iadd_rejects_unsupported_operand_types():
 
     with pytest.raises(TypeError, match="unsupported operand type"):
         buffer += 1
+
+
+def test_append_invalid_args():
+    buffer = bitbuf(0b1111_0000, 8)
+
+    with pytest.raises(TypeError, match="missing"):
+        buffer.append_high()
+    with pytest.raises(ValueError):
+        buffer.append_high(2)
+    with pytest.raises(TypeError, match="missing"):
+        buffer.append_low()
+    with pytest.raises(ValueError):
+        buffer.append_low(2)
 
 
 def test_append_lsb_appends_to_lsb_side():
