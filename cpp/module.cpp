@@ -57,6 +57,7 @@ static PyGetSetDef PyBitBuf_getset[] = {
 static PyNumberMethods PyBitBuf_number_methods;
 static PySequenceMethods PyBitBuf_sequence_methods;
 static PyMappingMethods PyBitBuf_mapping_methods;
+static PyBufferProcs PyBitBuf_buffer_methods;
 
 // clang-format off
 PyTypeObject PyBitBufType = {
@@ -88,6 +89,10 @@ PyMODINIT_FUNC PyInit__bitbuf(void) { // NOLINT
     PyBitBuf_mapping_methods.mp_subscript = PyBitBuf_getitem;
     PyBitBuf_mapping_methods.mp_ass_subscript = PyBitBuf_setitem;
 
+    PyBitBuf_buffer_methods = {};
+    PyBitBuf_buffer_methods.bf_getbuffer = PyBitBuf_getbuffer;
+    PyBitBuf_buffer_methods.bf_releasebuffer = PyBitBuf_releasebuffer;
+
     PyBitBufType.tp_name = "bitbuf.bitbuf";
     PyBitBufType.tp_basicsize = sizeof(PyBitBufObject);
     PyBitBufType.tp_itemsize = 0;
@@ -96,6 +101,7 @@ PyMODINIT_FUNC PyInit__bitbuf(void) { // NOLINT
     PyBitBufType.tp_as_number = &PyBitBuf_number_methods;
     PyBitBufType.tp_as_sequence = &PyBitBuf_sequence_methods;
     PyBitBufType.tp_as_mapping = &PyBitBuf_mapping_methods;
+    PyBitBufType.tp_as_buffer = &PyBitBuf_buffer_methods;
     PyBitBufType.tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE;
     PyBitBufType.tp_doc = "CPython C-API implementation for bitbuf";
     PyBitBufType.tp_richcompare = PyBitBuf_richcompare;

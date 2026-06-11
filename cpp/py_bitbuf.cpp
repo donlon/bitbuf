@@ -1023,3 +1023,15 @@ PyObject *PyBitBuf_get_offset(PyObject *self_obj, void *closure) {
     auto *self = PyBitBuf_CAST(self_obj);
     return PyLong_FromUnsignedLong(self->bitbuf.get_offset());
 }
+
+int PyBitBuf_getbuffer(PyObject *self_obj, Py_buffer *view, int flags) {
+    auto *self = PyBitBuf_CAST(self_obj);
+    uint8_t *ptr = self->bitbuf.normalize_buffer_8b();
+    const Py_ssize_t size = static_cast<Py_ssize_t>(self->bitbuf.nbytes());
+    return PyBuffer_FillInfo(view, self_obj, ptr, size, 1, flags);
+}
+
+void PyBitBuf_releasebuffer(PyObject *self_obj, Py_buffer *view) {
+    (void) self_obj;
+    (void) view;
+}

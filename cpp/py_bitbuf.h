@@ -78,3 +78,6 @@ PyObject *PyBitBuf_int_method(PyObject *self, PyObject *Py_UNUSED(ignored));
 PyObject *PyBitBuf_get_width(PyObject *self, void *closure);
 PyObject *PyBitBuf_get_nbytes(PyObject *self, void *closure);
 PyObject *PyBitBuf_get_offset(PyObject *self, void *closure);
+
+int PyBitBuf_getbuffer(PyObject *self, Py_buffer *view, int flags);
+void PyBitBuf_releasebuffer(PyObject *self, Py_buffer *view);

@@ -94,6 +94,48 @@ def test_from_bytes_accepts_bytearray_and_memoryview():
     assert int(from_memoryview) == 0x1234
 
 
+def test_bytearray_iadd_accepts_bitbuf():
+    data = bytearray(b"\xAA")
+
+    data += bitbuf(0x1234, 16)
+
+    assert data == bytearray(b"\xAA\x34\x12")
+
+
+def test_buffer_protocol_exports_normalized_bytes_and_size():
+    buffer = bitbuf(0x1234, 16)
+
+    view = memoryview(buffer)
+
+    assert view.nbytes == buffer.nbytes
+    assert view.tobytes() == bytes(buffer)
+
+
+def test_buffer_protocol_is_readonly():
+    buffer = bitbuf(0x1234, 16)
+
+    view = memoryview(buffer)
+    assert view.readonly
+
+
+def test_buffer_protocol_rejects_write_attempts():
+    buffer = bitbuf(0x1234, 16)
+
+    view = memoryview(buffer)
+
+    with pytest.raises(TypeError):
+        view[0] = 0xFF
+
+
+def test_buffer_protocol_handles_empty_buffer():
+    buffer = bitbuf()
+
+    view = memoryview(buffer)
+
+    assert view.nbytes == 0
+    assert view.tobytes() == b""
+
+
 def test_zeros_and_ones_constructors():
     assert int(bitbuf.zeros(5)) == 0
     assert int(bitbuf.ones(5)) == 0b11111
