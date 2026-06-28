@@ -243,6 +243,55 @@ static bool parse_int(PyObject *obj, int *out) {
     return true;
 }
 
+/// @brief Resolve METH_FASTCALL(| METH_KEYWORDS) arguments by name into @p out.
+///        @p kwlist is a nullptr-terminated array of accepted argument names in positional order.
+///        Callers must pre-fill @p out: required slots with nullptr, optional slots with their
+///        default value. On success, @p out[i] holds the supplied value (or the default) for the
+///        i-th argument. @p kwnames may be nullptr for the keyword-less METH_FASTCALL convention.
+/// @return True on success; false with a TypeError set otherwise.
+static bool parse_fastcall(const char *func_name, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames,
+                           const char *const *kwlist, Py_ssize_t min_args, PyObject **out) {
+    Py_ssize_t max_args = 0;
+    while (kwlist[max_args]) max_args++;
+
+    if (nargs > max_args) {
+        PyErr_Format(PyExc_TypeError, "%s() takes at most %zd arguments (%zd given)", func_name, max_args, nargs);
+        return false;
+    }
+    for (Py_ssize_t i = 0; i < nargs; i++) {
+        out[i] = args[i];
+    }
+    if (kwnames) {
+        const Py_ssize_t nkw = PyTuple_GET_SIZE(kwnames);
+        for (Py_ssize_t i = 0; i < nkw; i++) {
+            PyObject *key = PyTuple_GET_ITEM(kwnames, i);
+            Py_ssize_t idx = -1;
+            for (Py_ssize_t j = 0; j < max_args; j++) {
+                if (PyUnicode_CompareWithASCIIString(key, kwlist[j]) == 0) {
+                    idx = j;
+                    break;
+                }
+            }
+            if (idx < 0) {
+                PyErr_Format(PyExc_TypeError, "%s() got an unexpected keyword argument '%U'", func_name, key);
+                return false;
+            }
+            if (idx < nargs) {
+                PyErr_Format(PyExc_TypeError, "%s() got multiple values for argument '%s'", func_name, kwlist[idx]);
+                return false;
+            }
+            out[idx] = args[nargs + i];
+        }
+    }
+    for (Py_ssize_t i = 0; i < min_args; i++) {
+        if (out[i] == nullptr) {
+            PyErr_Format(PyExc_TypeError, "%s() missing required argument '%s'", func_name, kwlist[i]);
+            return false;
+        }
+    }
+    return true;
+}
+
 PyObject *PyBitBuf_zeros(PyObject *cls, PyObject *width_) {
     int width = 0;
     if (!parse_int(width_, &width)) { // TODO: PyLong_AsUnsignedLong
@@ -279,20 +328,15 @@ PyObject *PyBitBuf_ones(PyObject *cls, PyObject *width_) {
     return obj;
 }
 
-PyObject *PyBitBuf_from_buffer(PyObject *cls, PyObject *args, PyObject *kwargs) {
+PyObject *PyBitBuf_from_buffer(PyObject *cls, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     static const char *kwlist[] = {"buffer", "offset", "size", nullptr};
-    PyObject *value = nullptr;
-    PyObject *offset_obj = nullptr;
-    PyObject *size_obj = nullptr;
-    if (!PyArg_ParseTupleAndKeywords(args,
-                                     kwargs,
-                                     "OOO:from_buffer",
-                                     const_cast<char **>(kwlist),
-                                     &value,
-                                     &offset_obj,
-                                     &size_obj)) {
+    PyObject *parsed[3] = {nullptr, nullptr, nullptr};
+    if (!parse_fastcall("from_buffer", args, nargs, kwnames, kwlist, 3, parsed)) {
         return nullptr;
     }
+    const auto value = parsed[0];
+    const auto offset_obj = parsed[1];
+    const auto size_obj = parsed[2];
 
     Py_ssize_t offset = PyLong_AsSsize_t(offset_obj);
     if (offset == -1 && PyErr_Occurred()) {
@@ -312,7 +356,7 @@ PyObject *PyBitBuf_from_buffer(PyObject *cls, PyObject *args, PyObject *kwargs) 
         return nullptr;
     }
 
-    const Py_ssize_t total_bits = static_cast<Py_ssize_t>(full_buf.size);
+    const auto total_bits = static_cast<Py_ssize_t>(full_buf.size);
     if (offset > total_bits || size > total_bits - offset) {
         PyErr_SetString(PyExc_IndexError, "bit range out of range");
         return nullptr;
@@ -333,8 +377,9 @@ PyObject *PyBitBuf_from_buffer(PyObject *cls, PyObject *args, PyObject *kwargs) 
 
     const Py_ssize_t first_byte = offset / 8;
     const Py_ssize_t unaligned_bits = offset % 8;
-    const uint32_t assign_size = static_cast<uint32_t>(size + unaligned_bits);
-    const auto *ptr = reinterpret_cast<const BitBuf::data_t *>(reinterpret_cast<const uint8_t *>(full_buf.buffer) + first_byte);
+    const auto assign_size = static_cast<uint32_t>(size + unaligned_bits);
+    const auto *ptr =
+            reinterpret_cast<const BitBuf::data_t *>(reinterpret_cast<const uint8_t *>(full_buf.buffer) + first_byte);
 
     auto *self = PyBitBuf_CAST(obj);
     self->bitbuf.assign(ptr, assign_size);
@@ -557,10 +602,21 @@ PyObject *PyBitBuf_iadd(PyObject *self_obj, PyObject *arg) {
     return return_self(self_obj);
 }
 
-PyObject *PyBitBuf_assign(PyObject *self_obj, PyObject *args, PyObject *kwargs) {
-    if (PyBitBuf_init(PyBitBuf_CAST(self_obj), args, kwargs) != 0) {
-        // PyErr_SetString(PyExc_IndexError, "failed to assign value to bitbuf object");
+PyObject *PyBitBuf_assign(PyObject *self_obj, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
+    static const char *kwlist[] = {"value", "width", nullptr};
+    PyObject *parsed[2] = {Py_None, Py_None};
+    if (!parse_fastcall("assign", args, nargs, kwnames, kwlist, 0, parsed)) {
         return nullptr;
+    }
+    const auto value = parsed[0];
+    const auto width = parsed[1];
+
+    if (value != Py_None) {
+        ExtractedBuffer buf{};
+        if (!buf.extract(value, width)) {
+            return nullptr;
+        }
+        PyBitBuf_CAST(self_obj)->bitbuf.assign(buf.buffer, buf.size);
     }
     return return_self(self_obj);
 }
@@ -612,16 +668,15 @@ PyObject *PyBitBuf_get_bit_common(PyObject *self_obj, int pos) {
     return PyLong_FromLong(self->bitbuf.get_bit(static_cast<uint32_t>(pos)));
 }
 
-PyObject *PyBitBuf_get_bits(PyObject *self_obj, PyObject *args, PyObject *kwargs) {
+PyObject *PyBitBuf_get_bits(PyObject *self_obj, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     static const char *kwlist[] = {"pos", "width", nullptr};
-    PyObject *pos_obj = nullptr;
-    PyObject *width_obj = nullptr;
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO:get_bits", const_cast<char **>(kwlist), &pos_obj, &width_obj)) {
+    PyObject *parsed[2] = {nullptr, nullptr};
+    if (!parse_fastcall("get_bits", args, nargs, kwnames, kwlist, 2, parsed)) {
         return nullptr;
     }
     int pos = 0;
     int width = 0;
-    if (!parse_int(pos_obj, &pos) || !parse_int(width_obj, &width)) {
+    if (!parse_int(parsed[0], &pos) || !parse_int(parsed[1], &width)) {
         return nullptr;
     }
     return PyBitBuf_get_bits_common(self_obj, pos, width);
@@ -643,17 +698,16 @@ PyObject *PyBitBuf_get_bits_common(PyObject *self_obj, int pos, int width) {
     return create_pylong(buf.buffer, buf.size);
 }
 
-PyObject *PyBitBuf_get_bits_as_bytes(PyObject *self_obj, PyObject *args, PyObject *kwargs) {
+PyObject *PyBitBuf_get_bits_as_bytes(PyObject *self_obj, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     auto *self = PyBitBuf_CAST(self_obj);
     static const char *kwlist[] = {"pos", "width", nullptr};
-    PyObject *pos_obj = Py_None;
-    PyObject *width_obj = Py_None;
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO:get_bits", const_cast<char **>(kwlist), &pos_obj, &width_obj)) {
+    PyObject *parsed[2] = {nullptr, nullptr};
+    if (!parse_fastcall("get_bits_as_bytes", args, nargs, kwnames, kwlist, 2, parsed)) {
         return nullptr;
     }
     int pos = 0;
     int width = 0;
-    if (!parse_int(pos_obj, &pos) || !parse_int(width_obj, &width)) {
+    if (!parse_int(parsed[0], &pos) || !parse_int(parsed[1], &width)) {
         return nullptr;
     }
     if (width < 0) {
@@ -671,17 +725,17 @@ PyObject *PyBitBuf_get_bits_as_bytes(PyObject *self_obj, PyObject *args, PyObjec
     return PyBytes_FromStringAndSize(reinterpret_cast<const char *>(buf.get()), (width + 7) / 8);
 }
 
-PyObject *PyBitBuf_get_bits_as_bytearray(PyObject *self_obj, PyObject *args, PyObject *kwargs) {
+PyObject *PyBitBuf_get_bits_as_bytearray(PyObject *self_obj, PyObject *const *args, Py_ssize_t nargs,
+                                         PyObject *kwnames) {
     auto *self = PyBitBuf_CAST(self_obj);
     static const char *kwlist[] = {"pos", "width", nullptr};
-    PyObject *pos_obj = nullptr;
-    PyObject *width_obj = nullptr;
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO:get_bits", const_cast<char **>(kwlist), &pos_obj, &width_obj)) {
+    PyObject *parsed[2] = {nullptr, nullptr};
+    if (!parse_fastcall("get_bits_as_bytearray", args, nargs, kwnames, kwlist, 2, parsed)) {
         return nullptr;
     }
     int pos = 0;
     int width = 0;
-    if (!parse_int(pos_obj, &pos) || !parse_int(width_obj, &width)) {
+    if (!parse_int(parsed[0], &pos) || !parse_int(parsed[1], &width)) {
         return nullptr;
     }
     if (width < 0) {
@@ -712,17 +766,16 @@ PyObject *PyBitBuf_get_bits_as_bytearray(PyObject *self_obj, PyObject *args, PyO
     return ba;
 }
 
-PyObject *PyBitBuf_slice(PyObject *self_obj, PyObject *args, PyObject *kwargs) {
+PyObject *PyBitBuf_slice(PyObject *self_obj, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     static const char *kwlist[] = {"pos", "width", nullptr};
-    PyObject *pos_obj = nullptr;
-    PyObject *width_obj = nullptr;
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO:slice", const_cast<char **>(kwlist), &pos_obj, &width_obj)) {
+    PyObject *parsed[2] = {nullptr, nullptr};
+    if (!parse_fastcall("slice", args, nargs, kwnames, kwlist, 2, parsed)) {
         return nullptr;
     }
 
     int pos = 0;
     int width = 0;
-    if (!parse_int(pos_obj, &pos) || !parse_int(width_obj, &width)) {
+    if (!parse_int(parsed[0], &pos) || !parse_int(parsed[1], &width)) {
         return nullptr;
     }
 
@@ -753,25 +806,26 @@ PyObject *PyBitBuf_clear_bit(PyObject *self_obj, PyObject *pos_) {
     return PyBitBuf_set_bit_common(self_obj, pos, 0);
 }
 
-PyObject *PyBitBuf_set_bit(PyObject *self_obj, PyObject *args, PyObject *kwargs) {
+PyObject *PyBitBuf_set_bit(PyObject *self_obj, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     static const char *kwlist[] = {"pos", "value", nullptr};
-    PyObject *pos_obj = nullptr;
-    PyObject *value_obj = nullptr;
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|O:set_bit", const_cast<char **>(kwlist), &pos_obj, &value_obj)) {
+    PyObject *parsed[2] = {nullptr, nullptr};
+    if (!parse_fastcall("set_bit", args, nargs, kwnames, kwlist, 1, parsed)) {
         return nullptr;
     }
+    const auto pos_obj = parsed[0];
+    const auto value_obj = parsed[1];
 
     int pos = 0;
     int value = 0;
     if (!parse_int(pos_obj, &pos)) {
         return nullptr;
     }
-    if(!value_obj) {
+    if (!value_obj) {
         value = 1;
     } else if (!parse_int(value_obj, &value)) {
         return nullptr;
     }
-    if (value != 0 && value != 1){
+    if (value != 0 && value != 1) {
         PyErr_SetString(PyExc_ValueError, "value should be either 0 or 1");
         return nullptr;
     }
@@ -792,15 +846,15 @@ PyObject *PyBitBuf_set_bit_common(PyObject *self_obj, int pos, int value) {
     return return_self(self_obj);
 }
 
-PyObject *PyBitBuf_set_bits(PyObject *self_obj, PyObject *args, PyObject *kwargs) {
+PyObject *PyBitBuf_set_bits(PyObject *self_obj, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     static const char *kwlist[] = {"pos", "value", "width", nullptr};
-    PyObject *pos_obj = nullptr;
-    PyObject *value = nullptr;
-    PyObject *width = Py_None;
-    if (!PyArg_ParseTupleAndKeywords(
-                args, kwargs, "OO|O:set_bits", const_cast<char **>(kwlist), &pos_obj, &value, &width)) {
+    PyObject *parsed[3] = {nullptr, nullptr, Py_None};
+    if (!parse_fastcall("set_bits", args, nargs, kwnames, kwlist, 2, parsed)) {
         return nullptr;
     }
+    const auto pos_obj = parsed[0];
+    const auto value = parsed[1];
+    const auto width = parsed[2];
 
     int pos = 0;
     if (!parse_int(pos_obj, &pos)) {
@@ -830,18 +884,17 @@ bool PyBitBuf_set_bits_common(PyObject *self_obj, int pos, PyObject *width, PyOb
     return true;
 }
 
-PyObject *PyBitBuf_set_ones(PyObject *self_obj, PyObject *args, PyObject *kwargs) {
+PyObject *PyBitBuf_set_ones(PyObject *self_obj, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     auto *self = PyBitBuf_CAST(self_obj);
     static const char *kwlist[] = {"pos", "width", nullptr};
-    PyObject *pos_obj = Py_None;
-    PyObject *width_obj = Py_None;
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO:set_ones", const_cast<char **>(kwlist), &pos_obj, &width_obj)) {
+    PyObject *parsed[2] = {nullptr, nullptr};
+    if (!parse_fastcall("set_ones", args, nargs, kwnames, kwlist, 2, parsed)) {
         return nullptr;
     }
 
     int pos = 0;
     int width = 0;
-    if (!parse_int(pos_obj, &pos) || !parse_int(width_obj, &width)) {
+    if (!parse_int(parsed[0], &pos) || !parse_int(parsed[1], &width)) {
         return nullptr;
     }
 
@@ -859,17 +912,16 @@ PyObject *PyBitBuf_set_ones(PyObject *self_obj, PyObject *args, PyObject *kwargs
     return return_self(self_obj);
 }
 
-PyObject *PyBitBuf_set_zeros(PyObject *self_obj, PyObject *args, PyObject *kwargs) {
+PyObject *PyBitBuf_set_zeros(PyObject *self_obj, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     static const char *kwlist[] = {"pos", "width", nullptr};
-    PyObject *pos_obj = nullptr;
-    PyObject *width_obj = nullptr;
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO:set_zeros", const_cast<char **>(kwlist), &pos_obj, &width_obj)) {
+    PyObject *parsed[2] = {nullptr, nullptr};
+    if (!parse_fastcall("set_zeros", args, nargs, kwnames, kwlist, 2, parsed)) {
         return nullptr;
     }
 
     int pos = 0;
     int width = 0;
-    if (!parse_int(pos_obj, &pos) || !parse_int(width_obj, &width)) {
+    if (!parse_int(parsed[0], &pos) || !parse_int(parsed[1], &width)) {
         return nullptr;
     }
     auto *self = PyBitBuf_CAST(self_obj);
@@ -886,14 +938,15 @@ PyObject *PyBitBuf_set_zeros(PyObject *self_obj, PyObject *args, PyObject *kwarg
     return return_self(self_obj);
 }
 
-PyObject *PyBitBuf_toggle(PyObject *self_obj, PyObject *args, PyObject *kwargs) {
+PyObject *PyBitBuf_toggle(PyObject *self_obj, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     auto *self = PyBitBuf_CAST(self_obj);
     static const char *kwlist[] = {"pos", "width", nullptr};
-    PyObject *pos_obj = Py_None;
-    PyObject *width_obj = Py_None;
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OO:toggle", const_cast<char **>(kwlist), &pos_obj, &width_obj)) {
+    PyObject *parsed[2] = {Py_None, Py_None};
+    if (!parse_fastcall("toggle", args, nargs, kwnames, kwlist, 0, parsed)) {
         return nullptr;
     }
+    const auto pos_obj = parsed[0];
+    const auto width_obj = parsed[1];
 
     // TODO: pos == None
     int pos = 0;
@@ -928,14 +981,14 @@ PyObject *PyBitBuf_rshift(PyObject *self_obj, PyObject *bits_) {
     return PyBitBuf_irshift(self_obj, bits_);
 }
 
-PyObject *PyBitBuf_append_low(PyObject *self_obj, PyObject *args, PyObject *kwargs) {
+PyObject *PyBitBuf_append_low(PyObject *self_obj, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     static const char *kwlist[] = {"value", "width", nullptr};
-    PyObject *value = nullptr;
-    PyObject *width = Py_None;
-
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|O:append_low", const_cast<char **>(kwlist), &value, &width)) {
+    PyObject *parsed[2] = {nullptr, Py_None};
+    if (!parse_fastcall("append_low", args, nargs, kwnames, kwlist, 1, parsed)) {
         return nullptr;
     }
+    const auto value = parsed[0];
+    const auto width = parsed[1];
 
     ExtractedBuffer buf;
     if (!buf.extract(value, width)) {
@@ -945,14 +998,14 @@ PyObject *PyBitBuf_append_low(PyObject *self_obj, PyObject *args, PyObject *kwar
     return return_self(self_obj);
 }
 
-PyObject *PyBitBuf_append_high(PyObject *self_obj, PyObject *args, PyObject *kwargs) {
+PyObject *PyBitBuf_append_high(PyObject *self_obj, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     static const char *kwlist[] = {"value", "width", nullptr};
-    PyObject *value = nullptr;
-    PyObject *width = Py_None;
-
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|O:append_high", const_cast<char **>(kwlist), &value, &width)) {
+    PyObject *parsed[2] = {nullptr, Py_None};
+    if (!parse_fastcall("append_high", args, nargs, kwnames, kwlist, 1, parsed)) {
         return nullptr;
     }
+    const auto value = parsed[0];
+    const auto width = parsed[1];
 
     ExtractedBuffer buf;
     if (!buf.extract(value, width)) {
@@ -1094,7 +1147,7 @@ PyObject *PyBitBuf_get_offset(PyObject *self_obj, void *closure) {
 int PyBitBuf_getbuffer(PyObject *self_obj, Py_buffer *view, int flags) {
     auto *self = PyBitBuf_CAST(self_obj);
     uint8_t *ptr = self->bitbuf.normalize_buffer_8b();
-    const Py_ssize_t size = static_cast<Py_ssize_t>(self->bitbuf.nbytes());
+    const auto size = static_cast<Py_ssize_t>(self->bitbuf.nbytes());
     return PyBuffer_FillInfo(view, self_obj, ptr, size, 1, flags);
 }
 
