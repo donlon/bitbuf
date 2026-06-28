@@ -402,7 +402,11 @@ PyObject *PyBitBuf_richcompare(PyObject *self_obj, PyObject *other_obj, int op) 
     auto *self = PyBitBuf_CAST(self_obj);
     auto *rhs = PyBitBuf_CAST(other_obj);
     bool equal = self->bitbuf.compare(rhs->bitbuf) ^ (op == Py_NE);
-    return equal ? Py_True : Py_False;
+    if (equal) {
+        Py_RETURN_TRUE;
+    } else {
+        Py_RETURN_FALSE;
+    }
 }
 
 Py_ssize_t PyBitBuf_len(PyObject *self_obj) {
@@ -456,7 +460,7 @@ PyObject *PyBitBuf_setstate(PyObject *self_, PyObject *state) {
         return nullptr;
     }
     self->bitbuf.assign(state_buf + 4, buf_size);
-    return Py_None;
+    Py_RETURN_NONE;
 }
 
 PyObject *PyBitBuf_repr(PyObject *self_obj) {
