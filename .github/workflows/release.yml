@@ -36,6 +36,15 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install cibuildwheel
 
+      - name: Restore ccache (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-wheels-${{ runner.os }}-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            ccache-wheels-${{ runner.os }}-
+
       - name: Build wheels
         run: python -m cibuildwheel --output-dir dist
         env:
@@ -43,6 +52,19 @@ jobs:
           CIBW_SKIP: "pp* *musllinux* *-macosx_*"
           CIBW_ARCHS_LINUX: "x86_64"
           CIBW_ARCHS_WINDOWS: "AMD64"
+          CIBW_BEFORE_ALL_LINUX: >-
+            bash -c 'command -v ccache || ((command -v dnf && dnf install -y ccache) || (command -v yum && yum install -y ccache) || (apt-get update && apt-get install -y ccache))'
+          CIBW_ENVIRONMENT_LINUX: >-
+            CCACHE_DIR=/project/.ccache
+            CCACHE_BASEDIR=/project
+            CCACHE_COMPILERCHECK=content
+            CMAKE_C_COMPILER_LAUNCHER=ccache
+            CMAKE_CXX_COMPILER_LAUNCHER=ccache
+
+      - name: ccache stats (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          command -v ccache && ccache --show-stats || true
 
       - name: Upload wheel artifacts
         uses: actions/upload-artifact@v4
