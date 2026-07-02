@@ -21,6 +21,12 @@ build/
 cmake-build-*/
 cmake-build/
 
+# Cython test artifacts (compiled in place by tests/conftest.py)
+tests/cython-build
+tests/*.pyd
+tests/*.so
+tests/*.cpp
+
 # Rust build artifacts
 target/
 *.pdb

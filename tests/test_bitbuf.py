@@ -762,11 +762,11 @@ def test_iadd_rejects_unsupported_operand_types():
 def test_append_invalid_args():
     buffer = bitbuf(0b1111_0000, 8)
 
-    with pytest.raises(TypeError, match="missing"):
+    with pytest.raises(TypeError, match="at least"):
         buffer.append_high()
     with pytest.raises(ValueError):
         buffer.append_high(2)
-    with pytest.raises(TypeError, match="missing"):
+    with pytest.raises(TypeError, match="at least"):
         buffer.append_low()
     with pytest.raises(ValueError):
         buffer.append_low(2)

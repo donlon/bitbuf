@@ -8,36 +8,61 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(FetchContent)
 
+if (MSVC)
+    set(BITBUF_WARNING_FLAGS
+        /W4
+        /permissive-
+        /wd4146 # disable: unary minus operator applied to unsigned type
+    )
+    set(BITBUF_NO_WARNING_FLAGS /w)
+elseif (CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+    set(BITBUF_WARNING_FLAGS
+        -Wall
+        -Wextra
+        -Wpedantic
+        -Wconversion
+        -Wsign-conversion
+        -Wshadow
+        -Wno-missing-field-initializers
+        -Wno-parentheses
+    )
+    set(BITBUF_NO_WARNING_FLAGS -w)
+else ()
+    set(BITBUF_WARNING_FLAGS "")
+    set(BITBUF_NO_WARNING_FLAGS "")
+endif ()
+
 function(bitbuf_enable_warnings target_name)
-    if (MSVC)
-        target_compile_options(${target_name} PRIVATE
-            /W4
-            /permissive-
-            /wd4146 # disable: unary minus operator applied to unsigned type
-        )
-    elseif (CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-        target_compile_options(${target_name} PRIVATE
-            -Wall
-            -Wextra
-            -Wpedantic
-            -Wconversion
-            -Wsign-conversion
-            -Wshadow
-            -Wno-missing-field-initializers
-            -Wno-parentheses
-        )
-    endif()
+    target_compile_options(${target_name} PRIVATE ${BITBUF_WARNING_FLAGS})
 endfunction()
 
 find_package(Python 3.10 REQUIRED COMPONENTS Interpreter Development.Module)
+
+# Generate the C++ source for the bitbuf._bitbuf extension from Cython.
+set(_bitbuf_pyx "${CMAKE_CURRENT_SOURCE_DIR}/bitbuf/_bitbuf.pyx")
+set(_bitbuf_cpp "${CMAKE_CURRENT_BINARY_DIR}/_bitbuf.cpp")
+add_custom_command(
+    OUTPUT "${_bitbuf_cpp}"
+    COMMAND ${Python_EXECUTABLE} -m cython --cplus -3
+            "${_bitbuf_pyx}" -o "${_bitbuf_cpp}"
+            -I "${CMAKE_CURRENT_SOURCE_DIR}"
+    DEPENDS
+        "${_bitbuf_pyx}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/bitbuf/_bitbuf.pxd"
+        "${CMAKE_CURRENT_SOURCE_DIR}/bitbuf/__init__.pxd"
+        "${CMAKE_CURRENT_SOURCE_DIR}/cpp/bitbuf.h"
+        "${CMAKE_CURRENT_SOURCE_DIR}/cpp/utils.h"
+    VERBATIM
+    COMMENT "Cythonizing bitbuf/_bitbuf.pyx"
+)
 
 Python_add_library(
     _bitbuf
     MODULE
     WITH_SOABI
+    "${_bitbuf_cpp}"
     cpp/bitbuf.cpp
-    cpp/py_bitbuf.cpp
-    cpp/module.cpp
+    cpp/utils.cpp
 )
 
 # On Windows multi-config generators, prevent Debug from selecting *_d Python libs.
@@ -49,7 +74,15 @@ target_include_directories(_bitbuf PRIVATE cpp)
 target_compile_definitions(_bitbuf PRIVATE NOMINMAX Py_NO_LINK_LIB)
 target_compile_options(_bitbuf PRIVATE $<$<CONFIG:Debug>:/U_DEBUG>)
 target_link_libraries(_bitbuf PRIVATE Python::Module)
-bitbuf_enable_warnings(_bitbuf)
+
+# Enable warnings on the hand-written sources but not on the Cython-generated
+# _bitbuf.cpp (which is noisy and not ours to fix).
+set_source_files_properties(cpp/bitbuf.cpp cpp/utils.cpp
+    TARGET_DIRECTORY _bitbuf
+    PROPERTIES COMPILE_OPTIONS "${BITBUF_WARNING_FLAGS}")
+set_source_files_properties("${_bitbuf_cpp}"
+    TARGET_DIRECTORY _bitbuf
+    PROPERTIES COMPILE_OPTIONS "${BITBUF_NO_WARNING_FLAGS}")
 
 add_custom_command(
     TARGET _bitbuf
@@ -65,6 +98,23 @@ install(
     TARGETS _bitbuf
     LIBRARY DESTINATION bitbuf
     RUNTIME DESTINATION bitbuf
+)
+
+# Ship the header, the BitBuf implementation, and the Cython declarations so
+# downstream Cython/C extensions can build against the underlying BitBuf class.
+# The header goes under bitbuf/include, the compilable source under bitbuf/src,
+# and the package .pxd files sit in the package root.
+install(
+    FILES cpp/bitbuf.h
+    DESTINATION bitbuf/include
+)
+install(
+    FILES cpp/bitbuf.cpp
+    DESTINATION bitbuf/src
+)
+install(
+    FILES bitbuf/__init__.pxd bitbuf/_bitbuf.pxd
+    DESTINATION bitbuf
 )
 
 option(BITBUF_BUILD_CPP_TESTS "Build C++ unit tests for BitBuf" OFF)

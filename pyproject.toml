@@ -1,5 +1,5 @@
 [build-system]
-requires = ["scikit-build-core>=0.10", "nanobind>=2.4"]
+requires = ["scikit-build-core>=0.10", "cython>=3.0"]
 build-backend = "scikit_build_core.build"
 
 [project]
@@ -8,7 +8,7 @@ version = "0.3.0-beta.0"
 description = "A fast and lightweight bit-level mutation library for Python."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = "MIT"
 authors = [
   { name = "Anthony Donlon" }
 ]
@@ -23,7 +23,10 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=8"]
+test = [
+  "pytest",
+  "setuptools",
+]
 
 [tool.scikit-build]
 minimum-version = "0.10"
