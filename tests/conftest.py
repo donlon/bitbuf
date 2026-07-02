@@ -9,10 +9,10 @@ setuptools, the built ``bitbuf`` extension, or a C++ compiler is unavailable.
 
 import importlib.util
 import pathlib
-from contextlib import nullcontext
 import sys
 import sysconfig
-from typing import override
+from contextlib import nullcontext
+from typing_extensions import override
 
 import pytest
 

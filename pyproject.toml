@@ -26,6 +26,7 @@ classifiers = [
 test = [
   "pytest",
   "setuptools",
+  "typing_extensions",
 ]
 
 [tool.scikit-build]
