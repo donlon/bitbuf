@@ -298,9 +298,14 @@ void BitBuf::set_bits_nocheck(uint32_t pos, const data_t *src_buffer, uint32_t w
             *ptr = low_val + (src_value << buf_start_offset);
             low_val = src_value >> buf_start_offset_c;
         }
-        // TODO: buf_last_offset == 0
-        auto last_mask = (1ull << buf_last_offset) - 1;
-        *buf_last = (*buf_last & ~last_mask) | (low_val & last_mask);
+        // When buf_last_offset == 0 the written range ends exactly on a word
+        // boundary: the loop already wrote every word and buf_last points one
+        // word past the data, so there is no partial trailing word to merge.
+        // Touching *buf_last here would read/write out of bounds.
+        if (buf_last_offset != 0) {
+            auto last_mask = (1ull << buf_last_offset) - 1;
+            *buf_last = (*buf_last & ~last_mask) | (low_val & last_mask);
+        }
     }
 }
 

@@ -91,4 +91,30 @@ BITBUF_TEST(set_bits_out_of_range_noop) {
     CHECK(read_u64(b, 0, 16) == mask_u64(16));
 }
 
+// Regression for an out-of-bounds access in set_bits_nocheck: when an unaligned
+// write range ends exactly on a 64-bit word boundary (buf_last_offset == 0),
+// buf_last points one word past the data. The old code still did a no-op
+// read-modify-write of *buf_last, reading/writing out of bounds. Because the
+// write rewrote the same bits, the result stayed correct -- so these assert
+// correctness AND are meant to be run under a sanitizer (BITBUF_SANITIZE=ON) to
+// catch the OOB itself.
+BITBUF_TEST(set_bits_unaligned_end_on_word_boundary_tight_heap) {
+    // Tight heap allocation (no spare capacity) so the word one past the data is
+    // genuinely out of bounds. Under a sanitizer this deterministically catches
+    // the buf_last_offset == 0 overflow; the padded fixtures above do not.
+    BitBuf b{};
+    constexpr uint32_t words = 6;
+    b.heap_buffer = new BitBuf::data_t[words](); // owned; ~BitBuf frees it
+    b.capacity = words;                          // > inlineBufferWords -> heap storage
+    b.offset = 64;                               // object data starts in word 1
+    b.length = words * 64 - 64;                  // ends exactly on the word `words` boundary
+
+    BitBuf::data_t src[words];
+    for (auto &w : src) w = ~0ull;
+    b.set_bits(1, src, b.length - 1); // unaligned start, range ends on the boundary
+
+    CHECK(read_u64(b, 1, 63) == mask_u64(63));
+    CHECK(read_u64(b, 0, 1) == 0ull);
+}
+
 TEST_SUITE_END();
