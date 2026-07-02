@@ -433,33 +433,27 @@ PyObject *PyBitBuf_as_bytes(PyObject *self_obj, PyObject *ignored) {
 PyObject *PyBitBuf_getstate(PyObject *self_) {
     auto *self = PyBitBuf_CAST(self_);
     uint8_t *ptr = self->bitbuf.normalize_buffer_8b();
-
-    // Hack of appending bit size before the payload
-    Py_ssize_t buffer_size = (self->bitbuf.len() + 7) / 8 + 4;
-    PyObject *state = PyBytes_FromStringAndSize(reinterpret_cast<const char *>(ptr - 4), buffer_size);
-    char *bytes_ptr = PyBytes_AS_STRING(state);
-    *reinterpret_cast<uint32_t *>(bytes_ptr) = self->bitbuf.len();
-    return state;
+    PyObject *payload = PyBytes_FromStringAndSize(reinterpret_cast<const char *>(ptr),
+                                                  static_cast<Py_ssize_t>(self->bitbuf.nbytes()));
+    if (payload == nullptr) {
+        return nullptr;
+    }
+    // State is a (width, payload_bytes) tuple. 'N' steals the payload reference.
+    return Py_BuildValue("(kN)", static_cast<unsigned long>(self->bitbuf.len()), payload);
 }
 
 PyObject *PyBitBuf_setstate(PyObject *self_, PyObject *state) {
     auto *self = PyBitBuf_CAST(self_);
-    if (!PyBytes_Check(state)) {
-        PyErr_SetString(PyExc_TypeError, "state to restore has unexpected type");
+    unsigned long width = 0;
+    PyObject *payload = nullptr;
+    if (!PyArg_ParseTuple(state, "kS:__setstate__", &width, &payload)) {
         return nullptr;
     }
-    auto state_size = PyBytes_GET_SIZE(state);
-    if (state_size < 4) {
-        PyErr_SetString(PyExc_ValueError, "state to restore has invalid size");
+    if (PyBytes_GET_SIZE(payload) != static_cast<Py_ssize_t>((width + 7) / 8)) {
+        PyErr_SetString(PyExc_ValueError, "state to restore has inconsistent width and payload size");
         return nullptr;
     }
-    auto state_buf = PyBytes_AS_STRING(state);
-    auto buf_size = *reinterpret_cast<uint32_t *>(state_buf);
-    if (4 + (buf_size + 7) / 8 != state_size) {
-        PyErr_SetString(PyExc_ValueError, "state to restore has invalid size");
-        return nullptr;
-    }
-    self->bitbuf.assign(state_buf + 4, buf_size);
+    self->bitbuf.assign(PyBytes_AS_STRING(payload), static_cast<uint32_t>(width));
     Py_RETURN_NONE;
 }
 
