@@ -101,6 +101,39 @@ cdef int _rshift(bitbuf self, object bits) except -1:
     return 0
 
 
+cdef bitbuf create_zeros(int width):
+    if width < 0:
+        raise IndexError("width must be non-negative")
+    cdef bitbuf obj = bitbuf.__new__(bitbuf)
+    obj.bitbuf.assign_zeros(<uint32_t> width)
+    return obj
+
+
+cdef bitbuf create_ones(int width):
+    if width < 0:
+        raise IndexError("width must be non-negative")
+    cdef bitbuf obj = bitbuf.__new__(bitbuf)
+    obj.bitbuf.assign_ones(<uint32_t> width)
+    return obj
+
+
+cdef bitbuf from_buffer(const void *buffer, size_t offset, size_t size):
+    cdef bitbuf obj = bitbuf.__new__(bitbuf)
+    if size == 0:
+        return obj
+
+    cdef size_t first_byte = offset // 8
+    cdef size_t unaligned_bits = offset % 8
+    cdef uint32_t assign_size = <uint32_t> (size + unaligned_bits)
+    cdef const uint64_t *ptr = <const uint64_t *> (<const uint8_t *> buffer + first_byte)
+
+    obj.bitbuf.assign(ptr, assign_size)
+    if unaligned_bits > 0:
+        obj.bitbuf.delete_low(<uint32_t> unaligned_bits)
+    obj.bitbuf.resize(<uint32_t> size)
+    return obj
+
+
 cdef class bitbuf:
     """A fast, mutable bit buffer backed by the C++ BitBuf class."""
 
@@ -118,21 +151,11 @@ cdef class bitbuf:
 
     @classmethod
     def zeros(cls, width):
-        cdef int w = width
-        if w < 0:
-            raise IndexError("width must be non-negative")
-        cdef bitbuf obj = cls()
-        obj.bitbuf.assign_zeros(<uint32_t> w)
-        return obj
+        return create_zeros(width)
 
     @classmethod
     def ones(cls, width):
-        cdef int w = width
-        if w < 0:
-            raise IndexError("width must be non-negative")
-        cdef bitbuf obj = cls()
-        obj.bitbuf.assign_ones(<uint32_t> w)
-        return obj
+        return create_ones(width)
 
     @classmethod
     def from_buffer(cls, buffer, offset, size):
@@ -141,29 +164,16 @@ cdef class bitbuf:
         if off < 0 or sz < 0:
             raise ValueError("offset and size must be non-negative")
 
-        cdef ExtractedBuffer full
-        _extract(&full, buffer, -1)
+        cdef ExtractedBuffer buf
+        _extract(&buf, buffer, -1)
 
-        cdef Py_ssize_t total_bits = <Py_ssize_t> full.size
+        cdef Py_ssize_t total_bits = <Py_ssize_t> buf.size
         if off > total_bits or sz > total_bits - off:
             raise IndexError("bit range out of range")
         if sz > <Py_ssize_t> 0xFFFFFFFF:
             raise OverflowError("size is too large")
 
-        cdef bitbuf obj = cls()
-        if sz == 0:
-            return obj
-
-        cdef Py_ssize_t first_byte = off // 8
-        cdef Py_ssize_t unaligned_bits = off % 8
-        cdef uint32_t assign_size = <uint32_t> (sz + unaligned_bits)
-        cdef const uint64_t *ptr = <const uint64_t *> (<const uint8_t *> full.buffer + first_byte)
-
-        obj.bitbuf.assign(ptr, assign_size)
-        if unaligned_bits > 0:
-            obj.bitbuf.delete_low(<uint32_t> unaligned_bits)
-        obj.bitbuf.resize(<uint32_t> sz)
-        return obj
+        return from_buffer(buf.buffer, off, sz)
 
     # ---- dunder / protocol methods ----
 
