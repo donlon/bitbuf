@@ -5,7 +5,7 @@ build-backend = "scikit_build_core.build"
 [project]
 name = "bitbuf"
 version = "0.3.0"
-description = "A fast and lightweight bit-level mutation library for Python."
+description = "Lightweight and efficient bit-level buffer mutation library for Python."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
