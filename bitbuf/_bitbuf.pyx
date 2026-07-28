@@ -46,7 +46,7 @@ cdef int _extract(ExtractedBuffer *buf, object value, int width=-1) except -1:
     return 0
 
 
-cdef object _get_bit_common(bitbuf self, int pos):
+cdef bint _get_bit_common(bitbuf self, int pos):
     if pos < 0:
         pos += <int> self.bitbuf.len()
     if pos < 0 or pos >= <int> self.bitbuf.len():
@@ -330,7 +330,7 @@ cdef class bitbuf:
         self.bitbuf.get_bits(<uint32_t> pos, <uint32_t> width, buf.get_writable())
         return bytearray((<char *> buf.get_writable())[:(width + 7) // 8])
 
-    cpdef object slice(self, int pos, int width):
+    cpdef bitbuf slice(self, int pos, int width):
         if width < 0:
             raise IndexError("width must be non-negative")
         if pos < 0 or pos + width > <int> self.bitbuf.len():

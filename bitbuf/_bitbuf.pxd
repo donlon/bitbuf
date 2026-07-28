@@ -65,7 +65,7 @@ cdef class bitbuf:
     cpdef object get_bits(self, int pos, int width)
     cpdef bytes get_bits_as_bytes(self, int pos, int width)
     cpdef bytearray get_bits_as_bytearray(self, int pos, int width)
-    cpdef object slice(self, int pos, int width)
+    cpdef bitbuf slice(self, int pos, int width)
     cpdef bitbuf clear_bit(self, int pos)
     cpdef bitbuf set_bit(self, int pos, int value=*)
     cpdef bitbuf set_bits(self, int pos, object value, int width=*)
