@@ -67,3 +67,7 @@ class bitbuf:
 
     @property
     def offset(self) -> int: ...
+
+
+_ABI_VERSION: int
+# """Get Cython module ABI version."""

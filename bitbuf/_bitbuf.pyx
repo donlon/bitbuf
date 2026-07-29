@@ -477,3 +477,8 @@ cdef class bitbuf:
     @property
     def offset(self):
         return self.bitbuf.get_offset()
+
+
+cdef int ABI_VERSION = 0
+
+_ABI_VERSION = ABI_VERSION

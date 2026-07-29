@@ -28,7 +28,7 @@ def _build_pyx(pyx_path: pathlib.Path):
     if key in _built_modules:
         return _built_modules[key]
 
-    from bitbuf import get_bitbuf_include_dir, get_bitbuf_sources
+    from bitbuf import get_include_dir, get_sources
     from Cython.Build import cythonize
     from setuptools import Extension
     from setuptools.dist import Distribution
@@ -46,8 +46,8 @@ def _build_pyx(pyx_path: pathlib.Path):
 
     ext = Extension(
         name,
-        include_dirs=[get_bitbuf_include_dir()],
-        sources=[str(pyx_path), *get_bitbuf_sources()],
+        include_dirs=[get_include_dir()],
+        sources=[str(pyx_path), *get_sources()],
         language="c++",
         extra_compile_args=cxx_args,
         define_macros=[("NOMINMAX", None)],

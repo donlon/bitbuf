@@ -91,3 +91,5 @@ cdef bitbuf create_zeros(int width)
 cdef bitbuf create_ones(int width)
 
 cdef bitbuf from_buffer(const void *buffer, size_t offset, size_t size)
+
+cdef int ABI_VERSION

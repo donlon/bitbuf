@@ -3,10 +3,30 @@
 """Lightweight and efficient bit-level buffer mutation library for Python. Implemented in C++ with
 Cython support."""
 
-from ._bitbuf import bitbuf
+from ._bitbuf import _ABI_VERSION as ABI_VERSION, bitbuf
+
 
 __INCLUDE_DIR = None
 __SOURCE_DIR = None
+
+
+def check_abi_version(
+    *,
+    abi_version: int = -1,
+    library_name: str = "",
+):
+    """Check if ABI version of Cython interface of the built library matches with ``abi_version``.
+    
+    Raises:
+        ImportError: if ABI version mismatch with the given version
+    """
+    if abi_version != ABI_VERSION:
+        lib_name = library_name + " " if library_name else ""
+        raise ImportError(
+            f"Library {lib_name}requires bitbuf with abi version {abi_version} "
+            f"but installed has version {ABI_VERSION}. "
+            "Please update either of these packages."
+        )
 
 
 def __init_paths():
@@ -24,10 +44,10 @@ def __init_paths():
         __SOURCE_DIR = _root_dir / "cpp"
     else:
         __INCLUDE_DIR = _current_dir / "include"
-        __SOURCE_DIR = _current_dir / "cpp"
+        __SOURCE_DIR = _current_dir / "src"
 
 
-def get_bitbuf_include_dir() -> str:
+def get_include_dir() -> str:
     """Return include directory contains bitbuf header files, which is required to build Cython
     module that depends on bitbuf module."""
     if __INCLUDE_DIR is None:
@@ -35,7 +55,7 @@ def get_bitbuf_include_dir() -> str:
     return str(__INCLUDE_DIR)
 
 
-def get_bitbuf_sources() -> list[str]:
+def get_sources() -> list[str]:
     """Return list of C++ source files, which are required to build Cython module that depends on
     bitbuf module."""
     if __SOURCE_DIR is None:
@@ -43,4 +63,10 @@ def get_bitbuf_sources() -> list[str]:
     return [str(__SOURCE_DIR / "bitbuf.cpp")]
 
 
-__all__ = ("bitbuf", "get_bitbuf_include_dir", "get_bitbuf_sources")
+__all__ = (
+    "ABI_VERSION",
+    "bitbuf",
+    "check_abi_version",
+    "get_include_dir",
+    "get_sources",
+)
