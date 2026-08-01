@@ -32,7 +32,11 @@ def test_equal_simple():
     assert bitbuf(7, 10) == bitbuf(7, 10)
     assert bitbuf(7, 10) != bitbuf(7, 11)
     assert bitbuf(7, 10) != bitbuf(5, 10)
-    assert bitbuf(12, 10).delete_low(2) == bitbuf(0, 6).append_low(3, 2)
+    left = bitbuf(12, 10)
+    left.delete_low(2)
+    right = bitbuf(0, 6)
+    right.append_low(3, 2)
+    assert left == right
 
 
 def test_repr_includes_length_and_hex_value():
@@ -246,9 +250,7 @@ def test_set_bit_sets_and_clears_one_bit():
 def test_clear_bit_clears_one_bit():
     buffer = bitbuf(0b1111, 4)
 
-    returned = buffer.clear_bit(2)
-
-    assert returned is buffer
+    assert buffer.clear_bit(2) is None
     assert int(buffer) == 0b1011
 
 
@@ -579,10 +581,11 @@ def test_clone_is_independent_from_original():
     assert int(original) == 0xABC
 
 
-def test_clone_can_be_chained_with_mutating_methods():
+def test_clone_is_independent_from_the_original():
     original = bitbuf(0b1010, 4)
 
-    cloned = original.clone().append_high(0b11, 2)
+    cloned = original.clone()
+    cloned.append_high(0b11, 2)
 
     assert int(original) == 0b1010
     assert int(cloned) == 0b11_1010
@@ -893,7 +896,8 @@ def test_delete_all_bits():
 def test_delete_zero_width_does_not_change_buffer():
     buffer = bitbuf(0b1010, 4)
 
-    buffer.delete_high(0).delete_low(0)
+    buffer.delete_high(0)
+    buffer.delete_low(0)
     assert len(buffer) == 4
     assert int(buffer) == 0b1010
 

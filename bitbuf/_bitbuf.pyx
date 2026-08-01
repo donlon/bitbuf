@@ -282,22 +282,19 @@ cdef class bitbuf:
 
     # ---- class methods ----
 
-    cpdef bitbuf assign(self, object value=None, int width=-1):
+    cpdef void assign(self, object value=None, int width=-1):
         cdef ExtractedBuffer buf
         if value is not None:
             _extract(&buf, value, width)
             self.bitbuf.assign(buf.buffer, buf.size)
-        return self
 
-    cpdef bitbuf resize(self, int width):
+    cpdef void resize(self, int width):
         if width < 0:
             raise IndexError("bit range out of range")
         self.bitbuf.resize(<uint32_t> width)
-        return self
 
-    cpdef bitbuf clear(self):
+    cpdef void clear(self):
         self.bitbuf.clear()
-        return self
 
     cpdef bitbuf clone(self):
         cdef bitbuf obj = bitbuf.__new__(bitbuf)
@@ -339,38 +336,33 @@ cdef class bitbuf:
         obj.bitbuf = self.bitbuf.slice(<uint32_t> pos, <uint32_t> width)
         return obj
 
-    cpdef bitbuf clear_bit(self, int pos):
+    cpdef void clear_bit(self, int pos):
         _set_bit_common(self, pos, 0)
-        return self
 
-    cpdef bitbuf set_bit(self, int pos, int value=1):
+    cpdef void set_bit(self, int pos, int value=1):
         cdef int v = value
         if v != 0 and v != 1:
             raise ValueError("value should be either 0 or 1")
         _set_bit_common(self, pos, v)
-        return self
 
-    cpdef bitbuf set_bits(self, int pos, object value, int width=-1):
+    cpdef void set_bits(self, int pos, object value, int width=-1):
         _set_bits_common(self, pos, width, value)
-        return self
 
-    cpdef bitbuf set_ones(self, int pos, int width):
+    cpdef void set_ones(self, int pos, int width):
         if width < 0:
             raise IndexError("width must be non-negative")
         if pos < 0 or pos + width > <int> self.bitbuf.len():
             raise IndexError("bit range out of range")
         self.bitbuf.set_ones(<uint32_t> pos, <uint32_t> width)
-        return self
 
-    cpdef bitbuf set_zeros(self, int pos, int width):
+    cpdef void set_zeros(self, int pos, int width):
         if width < 0:
             raise IndexError("width must be non-negative")
         if pos < 0 or pos + width > <int> self.bitbuf.len():
             raise IndexError("bit range out of range")
         self.bitbuf.set_zeros(<uint32_t> pos, <uint32_t> width)
-        return self
 
-    cpdef bitbuf toggle(self, int pos=-1, int width=-1):
+    cpdef void toggle(self, int pos=-1, int width=-1):
         if pos == -1 and width == -1:
             pos = 0
             width = <int> self.bitbuf.len()
@@ -383,43 +375,36 @@ cdef class bitbuf:
         if pos < 0 or pos + width > <int> self.bitbuf.len():
             raise IndexError("bit range out of range")
         self.bitbuf.toggle(<uint32_t> pos, <uint32_t> width)
-        return self
 
-    cpdef bitbuf lshift(self, int bits):
+    cpdef void lshift(self, int bits):
         _lshift(self, bits)
-        return self
 
-    cpdef bitbuf rshift(self, int bits):
+    cpdef void rshift(self, int bits):
         _rshift(self, bits)
-        return self
 
-    cpdef bitbuf append_low(self, object value, int width=-1):
+    cpdef void append_low(self, object value, int width=-1):
         if value is None:
             raise TypeError("append_low() missing required argument 'value'")
         cdef ExtractedBuffer buf
         _extract(&buf, value, width)
         self.bitbuf.append_low(buf.buffer, buf.size)
-        return self
 
-    cpdef bitbuf append_high(self, object value, int width=-1):
+    cpdef void append_high(self, object value, int width=-1):
         if value is None:
             raise TypeError("append_high() missing required argument 'value'")
         cdef ExtractedBuffer buf
         _extract(&buf, value, width)
         self.bitbuf.append_high(buf.buffer, buf.size)
-        return self
 
-    cpdef bitbuf delete_low(self, int width):
+    cpdef void delete_low(self, int width):
         if width < 0:
             raise IndexError("bit range out of range")
         self.bitbuf.delete_low(<uint32_t> width)
-        return self
 
-    cpdef bitbuf delete_high(self, int width):
+    cpdef void delete_high(self, int width):
         if width < 0:
             raise IndexError("bit range out of range")
         self.bitbuf.delete_high(<uint32_t> width)
-        return self
 
     # TODO: pop_low -> size_t?
     cpdef object pop_low(self, int width):

@@ -30,6 +30,7 @@ build-*/
 build/
 cmake-build-*/
 cmake-build/
+bitbuf/**/*.cpp
 
 # Cython test artifacts (compiled in place by tests/conftest.py)
 tests/cython-build

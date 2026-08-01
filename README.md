@@ -112,7 +112,8 @@ high = buf.pop_high(3)      # remove and return high bits
 ```python
 buf = bitbuf(0x1234, 16)
 
-buf.assign(0xAB, 8).toggle() # assign and then flips all 8 bits
+buf.assign(0xAB, 8)
+buf.toggle()         # flips all 8 bits
 buf.clear()          # keeps len(buf) == 8
 ```
 

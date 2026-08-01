@@ -29,7 +29,9 @@ def test_cimported_bitbuf_type_supports_simple_methods():
     assert len(buffer) == 4
     assert buffer.get_bit(0) == 1
     assert buffer.get_bits(1, 2) == 0b01
-    assert int(buffer.clone().toggle(0, 2)) == 0b1000
+    cdef bitbuf toggled = buffer.clone()
+    toggled.toggle(0, 2)
+    assert int(toggled) == 0b1000
 
 
 def test_create_zeros():
