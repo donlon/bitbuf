@@ -31,10 +31,6 @@ cdef extern from "utils.h":
     string to_hex_string(const uint8_t *ptr, size_t size)
 
 
-# --------------------------------------------------------------------------
-# module-level helpers shared by several methods and protocol slots
-# --------------------------------------------------------------------------
-
 cdef int _extract(ExtractedBuffer *buf, object value, int width=-1) except -1:
     # extract()/set_from_bitbuf() set a Python error and return false on failure.
     if isinstance(value, bitbuf):
@@ -135,19 +131,12 @@ cdef bitbuf from_buffer(const void *buffer, size_t offset, size_t size):
 
 
 cdef class bitbuf:
-    """A fast, mutable bit buffer backed by the C++ BitBuf class."""
-
-    def __init__(self, value=None, width=None):
+    def __cinit__(self, object value = None, int width = -1):
         cdef ExtractedBuffer buf
-        cdef int w = -1
         if value is None:
             return
-        if width is not None:
-            w = <int> width
-        _extract(&buf, value, w)
+        _extract(&buf, value, width)
         self.bitbuf.assign(buf.buffer, buf.size)
-
-    # ---- static / class constructors ----
 
     @classmethod
     def zeros(cls, width):
@@ -174,8 +163,6 @@ cdef class bitbuf:
             raise OverflowError("size is too large")
 
         return from_buffer(buf.buffer, off, sz)
-
-    # ---- dunder / protocol methods ----
 
     def __len__(self):
         return self.bitbuf.len()
@@ -208,6 +195,7 @@ cdef class bitbuf:
             hex_value = "0x" + high[2:] + "..." + low[2:]
         return "bitbuf(len=%d, hex=%s)" % (length, hex_value)
 
+    # TODO: use __eq__
     def __richcmp__(self, other, int op):
         if op != Py_EQ and op != Py_NE:
             return NotImplemented
