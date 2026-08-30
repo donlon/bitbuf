@@ -10,12 +10,12 @@
 
 #include "bitbuf.h"
 
-// Render the little-endian bytes [ptr, ptr+size) as a "0x..." string (no leading
+// Render the little-endian bytes [ptr, ptr+length) as a "0x..." string (no leading
 // zeros; "0x0" for an all-zero / empty buffer).
-std::string to_hex_string(const uint8_t *ptr, size_t size);
+std::string to_hex_string(const uint8_t *ptr, size_t length);
 
-// Build a Python int from the low-endian bytes holding `size` bits.
-PyObject *create_pylong(const void *buffer, uint32_t size);
+// Build a Python int from the low-endian bytes holding `length` bits.
+PyObject *create_pylong(const void *buffer, uint32_t length);
 
 // Extracts a BitBuf-ready buffer from a Python value. Handles int / bytes /
 // bytearray / memoryview (bitbuf inputs are handled in the Cython layer, which
@@ -23,7 +23,7 @@ PyObject *create_pylong(const void *buffer, uint32_t size);
 struct ExtractedBuffer {
     BitBuf::data_t inline_buffer[8]{};
     const BitBuf::data_t *buffer = nullptr;
-    uint32_t size = 0;
+    uint32_t length = 0;
     bool is_owned = false;
 #if PY_MINOR_VERSION < 14
     PyObject *pybytes = nullptr;
@@ -35,13 +35,13 @@ struct ExtractedBuffer {
     ExtractedBuffer &operator=(const ExtractedBuffer &other) = delete;
     ExtractedBuffer &operator=(ExtractedBuffer &&other) = delete;
     ExtractedBuffer(ExtractedBuffer &&other) noexcept
-        : buffer(other.buffer), size(other.size), is_owned(other.is_owned)
+        : buffer(other.buffer), length(other.length), is_owned(other.is_owned)
 #if PY_MINOR_VERSION < 14
           ,
           pybytes(other.pybytes)
 #endif
     {
-        other.size = 0;
+        other.length = 0;
         other.buffer = nullptr;
         other.is_owned = false;
     }
@@ -62,7 +62,7 @@ struct ExtractedBuffer {
         }
         if (width == 0) {
             buffer = inline_buffer;
-            size = 0;
+            length = 0;
             is_owned = false;
             return true;
         }
@@ -118,7 +118,7 @@ struct ExtractedBuffer {
     bool set_from_bitbuf(BitBuf &other, int width) {
         if (width == 0) {
             buffer = inline_buffer;
-            size = 0;
+            length = 0;
             is_owned = false;
             return true;
         }
@@ -127,17 +127,17 @@ struct ExtractedBuffer {
         return assign_buffer(other.len(), width, (BitBuf::data_t *) buf);
     }
 
-    void allocate(uint32_t bit_size) {
-        uint32_t byte_size = (bit_size + 7) / 8;
+    void allocate(uint32_t bit_length) {
+        uint32_t byte_length = (bit_length + 7) / 8;
         if (is_owned) delete[] buffer;
-        if (byte_size <= sizeof(inline_buffer)) {
+        if (byte_length <= sizeof(inline_buffer)) { // FIXME: wrong buffer size
             buffer = inline_buffer;
             is_owned = false;
         } else {
-            buffer = new uint64_t[(bit_size + 63) / 64];
+            buffer = new uint64_t[(bit_length + 63) / 64];
             is_owned = true;
         }
-        size = bit_size;
+        length = bit_length;
     }
 
     BitBuf::data_t *get_writable() {
@@ -145,16 +145,16 @@ struct ExtractedBuffer {
     }
 
 private:
-    bool assign_buffer(uint32_t buffer_size, int64_t actual_size, const BitBuf::data_t *buffer_,
+    bool assign_buffer(uint32_t buffer_length, int64_t actual_length, const BitBuf::data_t *buffer_,
                        bool is_owned_ = false) {
-        if (actual_size >= 0) {
-            if (actual_size > buffer_size) {
+        if (actual_length >= 0) {
+            if (actual_length > buffer_length) {
                 PyErr_SetString(PyExc_ValueError, "width is bigger than actual data size");
                 return false;
             }
-            this->size = static_cast<uint32_t>(actual_size);
+            this->length = static_cast<uint32_t>(actual_length);
         } else {
-            this->size = buffer_size;
+            this->length = buffer_length;
         }
         this->buffer = buffer_;
         this->is_owned = is_owned_;

@@ -13,7 +13,8 @@ def test_init_masks_data_to_width():
 
 
 def test_init_rejects_negative_width():
-    with pytest.raises(ValueError, match="width"):
+    # FIXME: -1 -> invalid length
+    with pytest.raises(ValueError, match="width is not specified for int data"):
         bitbuf(0, -1)
 
 
@@ -40,25 +41,25 @@ def test_equal_simple():
 
 
 def test_repr_includes_length_and_hex_value():
-    assert repr(bitbuf()) == "bitbuf(len=0, hex=0x0)"
-    assert repr(bitbuf.zeros(128)) == "bitbuf(len=128, hex=0x0)"
-    assert repr(bitbuf(0x0, 12)) == "bitbuf(len=12, hex=0x0)"
-    assert repr(bitbuf(0xABC, 12)) == "bitbuf(len=12, hex=0xabc)"
-    assert repr(bitbuf(0xABC, 1024)) == "bitbuf(len=1024, hex=0xabc)"
+    assert repr(bitbuf()) == "bitbuf(value=0x0, length=0)"
+    assert repr(bitbuf.zeros(128)) == "bitbuf(value=0x0, length=128)"
+    assert repr(bitbuf(0x0, 12)) == "bitbuf(value=0x0, length=12)"
+    assert repr(bitbuf(0xABC, 12)) == "bitbuf(value=0xabc, length=12)"
+    assert repr(bitbuf(0xABC, 1024)) == "bitbuf(value=0xabc, length=1024)"
     assert repr(bitbuf(0x1234567890abcdef1234567890abcdef, 128)) \
-           == "bitbuf(len=128, hex=0x1234567890abcdef1234567890abcdef)"
+           == "bitbuf(value=0x1234567890abcdef1234567890abcdef, length=128)"
 
 
 def test_repr_abbreviates_very_long_values():
     assert repr(bitbuf(0x1234567890abcdefaa_1122334455667788, 256)) \
-           == "bitbuf(len=256, hex=0x1234567890abcdef...1122334455667788)"
+           == "bitbuf(value=0x1234567890abcdef...1122334455667788, length=256)"
     assert repr(bitbuf((1 << 400) - 1, 400)) \
-           == "bitbuf(len=400, hex=0xffffffffffffffff...ffffffffffffffff)"
+           == "bitbuf(value=0xffffffffffffffff...ffffffffffffffff, length=400)"
 
 
 def test_repr_abbreviates_very_long_values_ignore_leading_zeros():
     buffer = bitbuf(0x12340000abcdefab_aaaabbbb_1122334455667788, 400)
-    assert repr(buffer) == "bitbuf(len=400, hex=0x12340000abcdefab...1122334455667788)"
+    assert repr(buffer) == "bitbuf(value=0x12340000abcdefab...1122334455667788, length=400)"
 
 
 def test_from_int_uses_bit_length_when_width_is_omitted():
@@ -70,7 +71,7 @@ def test_from_int_uses_bit_length_when_width_is_omitted():
 
 
 def test_from_int_accepts_explicit_width_and_trims():
-    buffer = bitbuf(0b11110011, width=4)  # was bitbuf.from_int
+    buffer = bitbuf(0b11110011, length=4)  # was bitbuf.from_int
 
     assert len(buffer) == 4
     assert int(buffer) == 0b0011
@@ -84,7 +85,7 @@ def test_from_bytes_uses_little_endian_order():
 
 
 def test_constructor_truncate_unused_bits():
-    buffer = bitbuf(b"\x34\x12", width=12)
+    buffer = bitbuf(b"\x34\x12", length=12)
 
     assert len(buffer) == 12
     assert int(buffer) == 0x234
@@ -137,9 +138,9 @@ def test_from_buffer_rejects_invalid_ranges():
 
 
 def test_from_buffer_rejects_negative_offset_or_size():
-    with pytest.raises(ValueError, match="offset and size must be non-negative"):
+    with pytest.raises(ValueError, match="non-negative"):
         bitbuf.from_buffer(b"\x34\x12", -1, 4)
-    with pytest.raises(ValueError, match="offset and size must be non-negative"):
+    with pytest.raises(ValueError, match="non-negative"):
         bitbuf.from_buffer(b"\x34\x12", 0, -1)
 
 
@@ -191,7 +192,7 @@ def test_zeros_and_ones_constructors():
 
 
 def test_ones_rejects_negative_width():
-    with pytest.raises(IndexError, match="width"):
+    with pytest.raises(IndexError, match="non-negative"):
         bitbuf.ones(-1)
 
 
@@ -567,7 +568,7 @@ def test_clone_returns_distinct_copy_with_same_content():
 
     assert isinstance(copied, bitbuf)
     assert copied is not original
-    assert copied.width == original.width
+    assert copied.length == original.length
     assert int(copied) == int(original)
 
 

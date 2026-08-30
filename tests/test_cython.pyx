@@ -13,7 +13,7 @@ from bitbuf cimport (
 
 
 def test_abi_version():
-    expected_version = 0
+    expected_version = 1
 
     check_abi_version(abi_version=expected_version, library_name="test_cython")
     with pytest.raises(ImportError, match="Library test_cython requires bitbuf with abi version 10 but"):

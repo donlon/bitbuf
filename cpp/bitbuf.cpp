@@ -134,12 +134,6 @@ bool BitBuf::compare(BitBuf &other) {
     return memcmp(ptr1, ptr2, (length + 7) / 8) == 0;
 }
 
-/// @brief Get bit size of the object.
-/// @return Bit size of the object
-uint32_t BitBuf::len() const {
-    return length;
-}
-
 BitBuf &BitBuf::resize(uint32_t width) {
     auto old_length = length;
     int64_t delta_length = (int64_t) width - (int64_t) length;
@@ -470,7 +464,7 @@ void BitBuf::pop_high(data_t *dst_buffer, uint32_t width) {
 
 /// @brief Get bit size of the object.
 /// @return Bit size of the object
-uint32_t BitBuf::width() const {
+uint32_t BitBuf::len() const {
     return length;
 }
 

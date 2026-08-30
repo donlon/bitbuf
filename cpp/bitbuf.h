@@ -80,7 +80,6 @@ public:
 
     bool compare(BitBuf &other);
 
-    uint32_t len() const;
     BitBuf &resize(uint32_t width);
     BitBuf &clear();
     // void reserve(uint32_t size) const;
@@ -109,7 +108,7 @@ public:
     void pop_high(data_t *dst_buffer, uint32_t width);
     void pop_low(data_t *dst_buffer, uint32_t width);
 
-    uint32_t width() const;
+    uint32_t len() const;
     uint32_t nbytes() const;
     uint32_t get_offset() const;
     uint8_t *normalize_buffer_8b();
