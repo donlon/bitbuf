@@ -6,5 +6,6 @@ from ._bitbuf cimport (
     bitbuf,
     create_zeros,
     create_ones,
+    create_random,
     from_buffer,
 )

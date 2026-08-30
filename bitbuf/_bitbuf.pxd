@@ -89,6 +89,8 @@ cdef bitbuf create_zeros(int length)
 
 cdef bitbuf create_ones(int length)
 
+cdef bitbuf create_random(int length)
+
 cdef bitbuf from_buffer(const void *buffer, size_t pos, size_t length)
 
 cdef int ABI_VERSION

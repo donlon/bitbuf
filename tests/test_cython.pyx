@@ -7,6 +7,7 @@ from bitbuf cimport (
 	ABI_VERSION as ABI_VERSION_C,
 	bitbuf,
 	create_ones,
+	create_random,
 	create_zeros,
 	from_buffer,
 )
@@ -16,7 +17,7 @@ def test_abi_version():
     expected_version = 1
 
     check_abi_version(abi_version=expected_version, library_name="test_cython")
-    with pytest.raises(ImportError, match="Library test_cython requires bitbuf with abi version 10 but"):
+    with pytest.raises(ImportError, match=f"Library test_cython requires bitbuf with abi version {expected_version + 10} but"):
         check_abi_version(abi_version=expected_version + 10, library_name="test_cython")
 
     assert ABI_VERSION == expected_version
@@ -44,6 +45,10 @@ def test_create_ones():
     cdef bitbuf ones = create_ones(5)
     assert len(ones) == 5
     assert int(ones) == 0b11111
+
+def test_create_random():
+    cdef bitbuf buf = create_random(5)
+    assert len(buf) == 5
 
 
 def test_cython_from_buffer_extracts_unaligned_range():

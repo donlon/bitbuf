@@ -196,6 +196,19 @@ def test_ones_rejects_negative_width():
         bitbuf.ones(-1)
 
 
+def test_bitbuf_random():
+    r1 = bitbuf.random(64)
+    r2 = bitbuf.random(64)
+    assert r1.length == 64
+    assert r2.length == 64
+    assert r1 != r2
+
+
+def test_random_rejects_negative_width():
+    with pytest.raises(IndexError, match="non-negative"):
+        bitbuf.random(-1)
+
+
 def test_get_bit_reads_lsb_first_positions():
     buffer = bitbuf(0b1010, 4)
 

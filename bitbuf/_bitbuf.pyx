@@ -14,6 +14,7 @@ from libcpp.string cimport string
 from cpython.object cimport Py_EQ, Py_NE
 from cpython.buffer cimport PyBuffer_FillInfo
 
+from secrets import token_bytes
 # BitBuf (C++ class) and the ``bitbuf`` extension type are declared in the
 # companion _bitbuf.pxd and are automatically in scope here.
 
@@ -130,6 +131,13 @@ cdef bitbuf from_buffer(const void *buffer, size_t offset, size_t length):
     return obj
 
 
+cdef bitbuf create_random(int length):
+    if length < 0:
+        raise IndexError("length must be non-negative")
+    cdef bitbuf obj = bitbuf(token_bytes(length), length)
+    return obj
+
+
 cdef class bitbuf:
     def __cinit__(self, object value = None, int length = -1):
         cdef ExtractedBuffer buf
@@ -145,6 +153,10 @@ cdef class bitbuf:
     @classmethod
     def ones(cls, length):
         return create_ones(length)
+
+    @classmethod
+    def random(cls, length):
+        return create_random(length)
 
     @classmethod
     def from_buffer(cls, buffer, offset, length):
