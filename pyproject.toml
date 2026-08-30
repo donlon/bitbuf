@@ -25,6 +25,7 @@ classifiers = [
 [project.optional-dependencies]
 test = [
   "pytest",
+  "typing_extensions",
 ]
 
 [tool.scikit-build]
